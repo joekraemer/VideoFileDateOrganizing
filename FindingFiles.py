@@ -15,9 +15,9 @@
 #     and we can save HDD space by not reviewing those and instead reviewing the vlog)
 # [ ] Analyze missing days and see if there would be available clips in the surrounding days
 # [$] Delete files that are not video files  ( mostly photos .JPG .raw )
-# [ ] Index the files that are all ready organized
+# [$] Index the files that are all ready organized in folders
 # [$] Abstract the file handler as a class
-# [ ] Handle duplicate files by deleting them
+# [$] Handle duplicate files by deleting them
 
 import os
 import glob
@@ -33,9 +33,11 @@ import datetime
 
 current_dir_path = os.path.dirname(os.path.realpath(__file__))
 videoExtensions = ["*.mp4", "*.mov", "*.MP4", "*.avi", "*.mkv", "*.m4v"]
-photoExtensions = ["*.jpg", "*.heic", ".ARW", ".png", ".dng", ".jpeg"]
-recursive = False
-targetDirectory = 'D:/OneSecond/ToSort'
+photoExtensions = ["*.jpg", "*.heic", "*.ARW", "*.png", "*.dng", "*.jpeg"]
+recursive = True
+Destructive = False
+targetDirectory = 'E:/SSD/Media/OneSecond'
+sourceDirectory = 'E:/SSD/Media/OneSecond/oneplusVideos'
 
 
 def ConvertToDateTime(pywintime):
@@ -48,6 +50,15 @@ def ConvertToDateTime(pywintime):
         second=pywintime.second
     )
     return now_datetime
+
+
+def FindItemsInDirectory(sourceDir, extensionList):
+    pathList = []
+    for ext in extensionList:
+        if recursive:
+            ext = "**/" + ext
+        pathList.extend(Path(sourceDir).glob(ext))
+    return pathList
 
 
 def MakeFolder(path):
@@ -135,8 +146,8 @@ class Files:
         return self.files_by_date[date]
 
     # Get the number of file directores on a date key
-    def NumberOfFilesOnDate(self, dt):
-        obj = self.files_by_date[dt.date()]
+    def NumberOfFilesOnDate(self, date):
+        obj = self.files_by_date[date]
         return len(obj)
 
     # Get the oldest date key in the dictionary
@@ -156,10 +167,12 @@ class Files:
             # determine if we are in one of bounding years, we can't exceede the bounds
             if yr == self.firstDate.year:
                 month = self.firstDate.month
+            else:
+                month = 1
+
             if yr == self.lastDate.year:
                 limitMonth = self.lastDate.month
             else:
-                month = 1
                 limitMonth = 12
 
             while(month <= limitMonth):
@@ -167,7 +180,7 @@ class Files:
                 for day in range(1, num_days+1):
                     date = datetime.date(yr, month, day)
                     # start each date off with a zero
-                    self.files_by_date[date] = 0
+                    self.files_by_date[date]
                 month = month + 1
             yr = yr + 1
 
@@ -179,38 +192,46 @@ class Files:
                 print("Missing Video for " + str(date))
         return self
 
+    def PrintNumberOfMissingDatesPerYear(self):
+        # maybe I should make a function that is an iterator because this requires something similar to the CompleteCalendarFuncation
+        # Could keep a running count and update it when we add things to the dict 
+        return
+
+    def TripDetector(self):
+        # Analyze missing days and see if there would be available clips in the surrounding days
+        return
+
 
 def main():
 
     ref = Files()
 
-    # paths stores paths objects of files within a given directory with a given ending
-    videoPaths = []
-    photoPaths = []
+    # index the the videos that already exist in the folders
+    existingVideos = FindItemsInDirectory(targetDirectory, videoExtensions)
 
-    # find files that are photos
-    for ext in photoExtensions:
-        if recursive:
-            ext = "**/" + ext
-        photoPaths.extend(Path(targetDirectory).glob(ext))
+    # add video paths to the dictionary
+    for vid in existingVideos:
+        dt = GetCreationDateFromVideo(vid)
+        ref.Add(vid, dt)
 
-    # delete files that are photos
-    for file in photoPaths:
-        print("deleting file")
-        file.unlink()
+    if Destructive:
+        # find files that are photos
+        photoPaths = FindItemsInDirectory(sourceDirectory, photoExtensions)
+
+        # delete files that are photos
+        for file in photoPaths:
+            print("deleting file")
+            file.unlink()
 
     # digs up the matching video extensions
-    for ext in videoExtensions:
-        if recursive:
-            ext = "**/" + ext
-        videoPaths.extend(Path(targetDirectory).glob(ext))
+    videoPaths = FindItemsInDirectory(sourceDirectory, videoExtensions)
 
     for file in videoPaths:
         # Get Creation Date
         dt = GetCreationDateFromVideo(file)
 
         # If it is the second file with that date record
-        if(ref.NumberOfFilesOnDate(dt) > 1):
+        if(ref.NumberOfFilesOnDate(dt.date()) > 1):
             pathDestination = os.path.join(
                 targetDirectory, str(dt.year), str(dt.month), str(dt.day))
 
@@ -222,7 +243,7 @@ def main():
                 # update file in the dictionary
                 ref.DeleteEntry(dt)
                 ref.Add(newFile, dt)
-                
+
         else:
             pathDestination = os.path.join(
                 targetDirectory, str(dt.year), str(dt.month))
@@ -235,12 +256,23 @@ def main():
         newFile = os.path.join(pathDestination, file.name)
 
         # Move path
-        Path.rename(file, newFile)
+        if os.path.exists(newFile):
+            if Destructive:
+                # remove video in the sourceDir
+                Path.unlink(file)
+        else:
+            try:
+                # If the file exists, move it
+                Path.rename(file, newFile)
+            except OSError:
+                print('Exception while trying to move file: ', newFile)
+                print('Error: ', OSError)
+            else:
+                print('File Moved: ', newFile)
 
         ref.Add(file, dt)
 
-    # CompleteCalendarDictionary(firstDate, lastDate)
-    # PrintMissingDates(dateRecord)
+    ref.PrintMissingDates()
 
 
 if __name__ == "__main__":
