@@ -1,24 +1,3 @@
-#########
-# Goals #
-#########
-
-# [$] Take a Path input
-# [$] Discover the files inside
-# [$] If the file is a video look at the date that it was taken
-# [$] Document which dates are missing potential videos
-# [$] Create folders for years
-# [$] Create folders for months that don't exist
-# [$] If more than one video exists for a given day, make a folder for that day
-# [$] Organize Files by year and month according to date taken
-# [$] Put the files in their appropriate month
-# [ ] Highlight dates that have a high volume of clips ( most likely trip days,
-#     and we can save HDD space by not reviewing those and instead reviewing the vlog)
-# [ ] Analyze missing days and see if there would be available clips in the surrounding days
-# [$] Delete files that are not video files  ( mostly photos .JPG .raw )
-# [$] Index the files that are all ready organized in folders
-# [$] Abstract the file handler as a class
-# [$] Handle duplicate files by deleting them
-
 import os
 import glob
 import pytz
@@ -81,7 +60,6 @@ def MakeFolder(path):
 
 
 def GetCreationDateFromVideo(file):
-    print(file)
     properties = propsys.SHGetPropertyStoreFromParsingName(str(file))
     dt = properties.GetValue(pscon.PKEY_Media_DateEncoded).GetValue()
     dt = ConvertToDateTime(dt)
@@ -190,12 +168,43 @@ class Files:
         for date in self.files_by_date:
             if self.NumberOfFilesOnDate(date) == 0:
                 print("Missing Video for " + str(date))
-        return self
+        return
 
     def PrintNumberOfMissingDatesPerYear(self):
         # maybe I should make a function that is an iterator because this requires something similar to the CompleteCalendarFuncation
-        # Could keep a running count and update it when we add things to the dict 
+        # in the example the guy + 1 to the last date, but I'm not sure
+        for year in range(self.firstDate.year, self.lastDate.year):
+            daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAGivenYear(year)
+            daysMissing = 365 - daysWithFiles
+            print(str(year) + " has " + str(daysWithFiles) +
+                  " days with files. Missing" + str(daysMissing) + " days")
         return
+
+    def PrintNumberOfMissingDatesPerYearByMonth(self, year):
+        daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAGivenYear(year)
+        daysMissing = 365 - daysWithFiles
+        print(str(year) + " has " + str(daysWithFiles) +
+              " days with files. Missing" + str(daysMissing) + " days")
+        return
+
+        return
+
+    def GetNumberOfDaysThatHaveFilesInAGivenYear(self, year):
+        month = 1
+        runningCount = 0
+        while month <= 12:
+            # increment the count
+            runningCount = runningCount + \
+                self.GetNumberOfDaysThatHaveFilesInAMonth(month, year)
+            month = month + 1
+        return runningCount
+
+    def GetNumberOfDaysThatHaveFilesInAMonth(self, month, year):
+        runningCount = 0
+        for dateKey in self.files_by_date:
+            if (dateKey.year == year and dateKey.month == month and len(self.files_by_date[dateKey]) > 0):
+                runningCount = runningCount + 1
+        return runningCount
 
     def TripDetector(self):
         # Analyze missing days and see if there would be available clips in the surrounding days
@@ -272,8 +281,7 @@ def main():
 
         ref.Add(file, dt)
 
-    ref.PrintMissingDates()
-
+    ref.PrintNumberOfMissingDatesPerYearByMonth()
 
 if __name__ == "__main__":
     main()
