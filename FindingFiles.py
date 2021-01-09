@@ -20,6 +20,20 @@ targetDirectory = 'E:/SSD/Media/OneSecond'
 sourceDirectory = 'E:/SSD/Media/OneSecond/oneplusVideos'
 dictionaryFilename = 'dictionary.pickle'
 
+class FileInformation:
+    def __init__(self, lastDirFound, name, size):
+        self.LastDirectoryFound = lastDirFound
+        self.Name = name
+        self.Size = size
+
+class BigFileFolderInformation:
+    def __init__(self, size, files):
+        self.Size = size
+        self.Files = files
+    
+    def Add(self, file):
+        self.Files.append(file)
+
 
 def ConvertToDateTime(pywintime):
     now_datetime = datetime.datetime(
@@ -33,7 +47,7 @@ def ConvertToDateTime(pywintime):
     return now_datetime
 
 
-def FindItemsInDirectory(sourceDir, extensionList, recursive = True):
+def FindItemsInDirectory(sourceDir, extensionList, recursive=True):
     pathList = []
     for ext in extensionList:
         if recursive:
@@ -94,6 +108,7 @@ def MakeFoldersForMonths(dir, earliestDate, latestDate):
             month = month + 1
 
         year = year + 1
+
 
 class Files:
 
@@ -182,13 +197,14 @@ class Files:
         return
 
     def PrintNumberOfMissingDatesPerMonth(self, year):
-        month = 1 
+        month = 1
         while month <= 12:
-            daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAMonth(month, year)
+            daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAMonth(
+                month, year)
 
             daysMissing = calendar.monthrange(year, month)[1] - daysWithFiles
             print(str(year) + '-' + str(month) + " has " + str(daysWithFiles) +
-                " days with files. Missing " + str(daysMissing) + " days")
+                  " days with files. Missing " + str(daysMissing) + " days")
             month = month + 1
 
         return
@@ -223,24 +239,41 @@ class Files:
                 self.firstDate = entry
 
     def SaveDictionary(self, directory, fileName):
-        fileDir = os.path.join( directory, fileName )
+        fileDir = os.path.join(directory, fileName)
         with open(fileDir, 'wb') as handle:
             pickle.dump(self.files_by_date, handle,
                         protocol=pickle.HIGHEST_PROTOCOL)
         return
 
+    def TestDictionary(self, depth=5):
+        # Depth: is how far into the dictionary we should search before validating it
+        self.ReevaluateDates()
+
+        pathsChecked = 0
+        pathsSuccessful = 0
+        for entry in self.files_by_date:
+            if (len(self.files_by_date[entry]) >= 0):
+                pathsChecked = pathsChecked + 1
+                for path in self.files_by_date[entry]:
+                    if(Path.exists(path)):
+                        pathsSuccessful = pathsSuccessful + 1
+                    if(pathsSuccessful >= depth):
+                        print("Test passed on found dictionary")
+                        return True
+                    if(pathsChecked > depth):
+                        return False
+
     def LoadDictionary(self, directory, fileName):
-        fileDir = os.path.join( directory, fileName )
+
+        fileDir = os.path.join(directory, fileName)
 
         with open(fileDir, 'rb') as handle:
             self.files_by_date = pickle.load(handle)
 
-            # Run a test on the dictionary and see if it actually holds the dictionary and there is a valid file path
-            # Find one file in the directory and see if the file is in the spot that the dictionary says
-            # TODO self.files_by_date
+        result = self.TestDictionary()
+        return result
+    
 
-            self.ReevaluateDates()
-        return
 
 
 def main():
@@ -321,6 +354,7 @@ def main():
 
     ref.PrintNumberOfMissingDatesPerMonth(2019)
     ref.SaveDictionary(targetDirectory, dictionaryFilename)
+
 
 if __name__ == "__main__":
     main()
