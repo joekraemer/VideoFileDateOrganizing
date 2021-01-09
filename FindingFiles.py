@@ -5,6 +5,7 @@ import datetime
 import calendar
 import pywintypes
 import shutil
+import pickle
 from collections import defaultdict
 from win32com.propsys import propsys, pscon
 from pathlib import Path
@@ -13,10 +14,11 @@ import datetime
 current_dir_path = os.path.dirname(os.path.realpath(__file__))
 videoExtensions = ["*.mp4", "*.mov", "*.MP4", "*.avi", "*.mkv", "*.m4v"]
 photoExtensions = ["*.jpg", "*.heic", "*.ARW", "*.png", "*.dng", "*.jpeg"]
-recursive = True
+pickleExtensions = ["*.pickle"]
 Destructive = False
 targetDirectory = 'E:/SSD/Media/OneSecond'
 sourceDirectory = 'E:/SSD/Media/OneSecond/oneplusVideos'
+dictionaryFilename = 'dictionary.pickle'
 
 
 def ConvertToDateTime(pywintime):
@@ -31,7 +33,7 @@ def ConvertToDateTime(pywintime):
     return now_datetime
 
 
-def FindItemsInDirectory(sourceDir, extensionList):
+def FindItemsInDirectory(sourceDir, extensionList, recursive = True):
     pathList = []
     for ext in extensionList:
         if recursive:
@@ -92,7 +94,6 @@ def MakeFoldersForMonths(dir, earliestDate, latestDate):
             month = month + 1
 
         year = year + 1
-
 
 class Files:
 
@@ -177,15 +178,18 @@ class Files:
             daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAGivenYear(year)
             daysMissing = 365 - daysWithFiles
             print(str(year) + " has " + str(daysWithFiles) +
-                  " days with files. Missing" + str(daysMissing) + " days")
+                  " days with files. Missing " + str(daysMissing) + " days")
         return
 
-    def PrintNumberOfMissingDatesPerYearByMonth(self, year):
-        daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAGivenYear(year)
-        daysMissing = 365 - daysWithFiles
-        print(str(year) + " has " + str(daysWithFiles) +
-              " days with files. Missing" + str(daysMissing) + " days")
-        return
+    def PrintNumberOfMissingDatesPerMonth(self, year):
+        month = 1 
+        while month <= 12:
+            daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAMonth(month, year)
+
+            daysMissing = calendar.monthrange(year, month)[1] - daysWithFiles
+            print(str(year) + '-' + str(month) + " has " + str(daysWithFiles) +
+                " days with files. Missing " + str(daysMissing) + " days")
+            month = month + 1
 
         return
 
@@ -210,78 +214,113 @@ class Files:
         # Analyze missing days and see if there would be available clips in the surrounding days
         return
 
+    def ReevaluateDates(self):
+        for entry in self.files_by_date:
+            # Update timeframe
+            if entry > self.lastDate:
+                self.lastDate = entry
+            if entry < self.firstDate:
+                self.firstDate = entry
+
+    def SaveDictionary(self, directory, fileName):
+        fileDir = os.path.join( directory, fileName )
+        with open(fileDir, 'wb') as handle:
+            pickle.dump(self.files_by_date, handle,
+                        protocol=pickle.HIGHEST_PROTOCOL)
+        return
+
+    def LoadDictionary(self, directory, fileName):
+        fileDir = os.path.join( directory, fileName )
+
+        with open(fileDir, 'rb') as handle:
+            self.files_by_date = pickle.load(handle)
+
+            # Run a test on the dictionary and see if it actually holds the dictionary and there is a valid file path
+            # Find one file in the directory and see if the file is in the spot that the dictionary says
+            # TODO self.files_by_date
+
+            self.ReevaluateDates()
+        return
+
 
 def main():
 
     ref = Files()
 
-    # index the the videos that already exist in the folders
-    existingVideos = FindItemsInDirectory(targetDirectory, videoExtensions)
+    pickles = FindItemsInDirectory(targetDirectory, pickleExtensions, False)
 
-    # add video paths to the dictionary
-    for vid in existingVideos:
-        dt = GetCreationDateFromVideo(vid)
-        ref.Add(vid, dt)
+    if len(pickles) > 0:
+        # found an existing directory
+        ref.LoadDictionary(targetDirectory, pickles[0])
+    else:
+        # index the the videos that already exist in the folders
+        existingVideos = FindItemsInDirectory(targetDirectory, videoExtensions)
 
-    if Destructive:
-        # find files that are photos
-        photoPaths = FindItemsInDirectory(sourceDirectory, photoExtensions)
+        # add video paths to the dictionary
+        for vid in existingVideos:
+            dt = GetCreationDateFromVideo(vid)
+            ref.Add(vid, dt)
 
-        # delete files that are photos
-        for file in photoPaths:
-            print("deleting file")
-            file.unlink()
+        if Destructive:
+            # find files that are photos
+            photoPaths = FindItemsInDirectory(sourceDirectory, photoExtensions)
 
-    # digs up the matching video extensions
-    videoPaths = FindItemsInDirectory(sourceDirectory, videoExtensions)
+            # delete files that are photos
+            for file in photoPaths:
+                print("deleting file")
+                file.unlink()
 
-    for file in videoPaths:
-        # Get Creation Date
-        dt = GetCreationDateFromVideo(file)
+        # digs up the matching video extensions
+        videoPaths = FindItemsInDirectory(sourceDirectory, videoExtensions)
 
-        # If it is the second file with that date record
-        if(ref.NumberOfFilesOnDate(dt.date()) > 1):
-            pathDestination = os.path.join(
-                targetDirectory, str(dt.year), str(dt.month), str(dt.day))
+        for file in videoPaths:
+            # Get Creation Date
+            dt = GetCreationDateFromVideo(file)
 
-            # move existing file into this new date
-            for files in ref.GetFiles(dt):
-                newFile = os.path.join(pathDestination, files.name)
-                Path.rename(files, newFile)
+            # If it is the second file with that date record
+            if(ref.NumberOfFilesOnDate(dt.date()) > 1):
+                pathDestination = os.path.join(
+                    targetDirectory, str(dt.year), str(dt.month), str(dt.day))
 
-                # update file in the dictionary
-                ref.DeleteEntry(dt)
-                ref.Add(newFile, dt)
+                # move existing file into this new date
+                for files in ref.GetFiles(dt):
+                    newFile = os.path.join(pathDestination, files.name)
+                    Path.rename(files, newFile)
 
-        else:
-            pathDestination = os.path.join(
-                targetDirectory, str(dt.year), str(dt.month))
+                    # update file in the dictionary
+                    ref.DeleteEntry(dt)
+                    ref.Add(newFile, dt)
 
-        # Make folders if necessary and move files
-        if not (os.path.exists(pathDestination)):
-            MakeFolder(pathDestination)
-
-        # Create the new file path
-        newFile = os.path.join(pathDestination, file.name)
-
-        # Move path
-        if os.path.exists(newFile):
-            if Destructive:
-                # remove video in the sourceDir
-                Path.unlink(file)
-        else:
-            try:
-                # If the file exists, move it
-                Path.rename(file, newFile)
-            except OSError:
-                print('Exception while trying to move file: ', newFile)
-                print('Error: ', OSError)
             else:
-                print('File Moved: ', newFile)
+                pathDestination = os.path.join(
+                    targetDirectory, str(dt.year), str(dt.month))
 
-        ref.Add(file, dt)
+            # Make folders if necessary and move files
+            if not (os.path.exists(pathDestination)):
+                MakeFolder(pathDestination)
 
-    ref.PrintNumberOfMissingDatesPerYearByMonth()
+            # Create the new file path
+            newFile = os.path.join(pathDestination, file.name)
+
+            # Move path
+            if os.path.exists(newFile):
+                if Destructive:
+                    # remove video in the sourceDir
+                    Path.unlink(file)
+            else:
+                try:
+                    # If the file exists, move it
+                    Path.rename(file, newFile)
+                except OSError:
+                    print('Exception while trying to move file: ', newFile)
+                    print('Error: ', OSError)
+                else:
+                    print('File Moved: ', newFile)
+
+            ref.Add(file, dt)
+
+    ref.PrintNumberOfMissingDatesPerMonth(2019)
+    ref.SaveDictionary(targetDirectory, dictionaryFilename)
 
 if __name__ == "__main__":
     main()
