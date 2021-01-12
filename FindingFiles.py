@@ -43,22 +43,19 @@ class FileInformation:
 
 
 class FileClusterManager:
-    def __init__(self):
+    def __init__(self, date, path):
         self.Size = 0
         # List of FileInformation Classes
         self.Files = []
         self.FilesExistOnDisk = False
-        self.Path = None
+        self.Date = date
+
+        self.Path = os.path.join(
+            path, str(self.Date.year), str(self.Date.month))
 
     # Add files to this cluster
     def Add(self, file):
         self.Files.append(file)
-
-        # Extract directory
-        head_tail = os.path.split(file.LastDirectoryFound)
-
-        self.Path = os.path.join(head_tail[0], str(
-            file.DateTime.year), str(file.DateTime.month))
         self.FilesExistOnDisk = True
 
         # Here we should make the call to move the file to the cluster
@@ -160,7 +157,7 @@ class FileManager:
 
     def __init__(self):
         # dictionary of file cluster managers by date
-        self.files_by_date = defaultdict(FileClusterManager)
+        self.files_by_date = {}
 
         self.firstDate = datetime.date(2020, 6, 15)
         self.lastDate = datetime.date(1987, 6, 15)
@@ -169,13 +166,37 @@ class FileManager:
     # TODO prevent a double add
     # Add new FileInformation object to the dictionary
     def Add(self, fileInfo):
-        self.files_by_date[fileInfo.DateTime.date()].Add(fileInfo)
+
+        # Check to see if there is already a key in the dictionary
+        if (self.ValueExists(fileInfo.DateTime.date())):
+            # Add to existing FileClusterManager
+            self.files_by_date[fileInfo.DateTime.date()].Add(fileInfo)
+        else:
+            # Create a new File Cluster Manager
+            fcm = FileClusterManager(fileInfo.DateTime.date(), targetDirectory)
+            # Add file info to the fcm
+            fcm.Add(fileInfo)
+            # Add fcm to the dictionary
+            self.files_by_date[fileInfo.DateTime.date()] = fcm
 
         # Update timeframe
         if fileInfo.DateTime.date() > self.lastDate:
             self.lastDate = fileInfo.DateTime.date()
         if fileInfo.DateTime.date() < self.firstDate:
             self.firstDate = fileInfo.DateTime.date()
+
+    # Returns the value associated with a key in the files_by_date dictionary
+    def ValueExists(self, date):
+        if date in self.files_by_date:
+            return self.files_by_date[date]
+
+    # Find File in dictionary and update its last know directory
+    def UpdateLastKnownDir(self, fileInfo, newDir):
+        if(self.ValueExists(fileInfo.DateTime.date())):
+            files = self.files_by_date[fileInfo.DateTime.date()].GetFiles()
+            for f in files:
+                if f.Name == fileInfo.Name:
+                    f.LastDirectoryFound = newDir
 
     # Delete the entire FileInformationManager entry for the date key
     def DeleteEntry(self, dt):
@@ -294,10 +315,11 @@ class FileManager:
 
     def SavePickleFile(self, directory, fileName):
         fileDir = os.path.join(directory, fileName)
+        with open(fileDir, 'wb') as handle:
+            pickle.dump(self.files_by_date, handle,
+                        protocol=pickle.HIGHEST_PROTOCOL)
         if(os.path.exists(fileDir)):
-            with open(fileDir, 'wb') as handle:
-                pickle.dump(self.files_by_date, handle,
-                            protocol=pickle.HIGHEST_PROTOCOL)
+            print('Dictionary Saved')
         return
 
     def LoadPickleFile(self, directory, fileName, testFunc):
@@ -381,7 +403,7 @@ class FileManager:
         while (historicalSize != os.path.getsize(dstDir)):
             historicalSize = os.path.getsize(dstDir)
             time.sleep(3)
-        print('File copy has now finished')
+        return True
 
     # Cut videos from an existing directory and move it to a new target dir
     def CutVideosFromDirectory(self, sourceDir, targetDir):
@@ -396,7 +418,13 @@ class FileManager:
             fileInfo = FileInformation(filePath)
 
             # Get the destination path from the FileClusterManager
-            dstPath = self.files_by_date[fileInfo.DateTime.date()].GetPath()
+            if (self.ValueExists(fileInfo.DateTime.date())):
+                dstPath = self.files_by_date[fileInfo.DateTime.date(
+                )].GetPath()
+            else:
+                self.Add(fileInfo)
+                dstPath = self.files_by_date[fileInfo.DateTime.date(
+                )].GetPath()
 
             # Add the file name to the end of the destination directory
             dstPath_File = os.path.join(dstPath, fileInfo.Name)
@@ -405,13 +433,10 @@ class FileManager:
                # Confirm that the file has been copied
                 if(os.path.exists(dstPath_File)):
                     # Copy was successfuly, update its last known directory
-                    fileInfo.LastDirectoryFound = dstPath_File
+                    self.UpdateLastKnownDir(fileInfo, dstPath_File)
                 else:
                     print('Failed to copy file')
                     return False
-
-                # Add it to our dictionary
-                self.Add(fileInfo)
 
                 # Now that it is added to the dictionary, we can delete it from the old directory
                 os.remove(sourceDir)
@@ -423,14 +448,20 @@ class FileManager:
     def CopyVideosFromDirectory(self, sourceDir, targetDir):
         # Find all the videos in the sourceDir
         videoPaths = self.FindItemsInDirectory(sourceDir, videoExtensions)
-
+        progress = 0
         for filePath in videoPaths:
 
             # Create a new FileInformation object given the path
             fileInfo = FileInformation(filePath)
 
             # Get the destination path from the FileClusterManager
-            dstPath = self.files_by_date[fileInfo.DateTime.date()].GetPath()
+            if (self.ValueExists(fileInfo.DateTime.date())):
+                dstPath = self.files_by_date[fileInfo.DateTime.date(
+                )].GetPath()
+            else:
+                self.Add(fileInfo)
+                dstPath = self.files_by_date[fileInfo.DateTime.date(
+                )].GetPath()
 
             # Add the file name to the end of the destination directory
             dstPath_File = os.path.join(dstPath, fileInfo.Name)
@@ -439,13 +470,12 @@ class FileManager:
                 # Confirm that the file has been copied
                 if(os.path.exists(dstPath_File)):
                     # Copy was successfuly, update its last known directory
-                    fileInfo.LastDirectoryFound = dstPath_File
+                    self.UpdateLastKnownDir(fileInfo, dstPath_File)
+                    progress = progress + 1
+                    print(str(progress) + ' out of ' + str(len(videoPaths)) + ' files complete')
                 else:
                     print('Failed to copy file')
                     return False
-
-                # Add it to our dictionary
-                self.Add(fileInfo)
             else:
                 return False
         return True
@@ -464,7 +494,7 @@ def main():
     else:
 
         # Add videos to dictionary that are already in the Target Directory
-        ref.IndexVideosInDirectory(sourceDirectory)
+        ref.IndexVideosInDirectory(targetDirectory)
 
         if Destructive:
             ref.DeletePhotosInDirectory(sourceDirectory)
