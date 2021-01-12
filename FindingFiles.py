@@ -411,6 +411,7 @@ class FileManager:
 
         # Find all the videos in the sourceDir
         videoPaths = self.FindItemsInDirectory(sourceDir, videoExtensions)
+        progress = 0
 
         for filePath in videoPaths:
 
@@ -434,6 +435,8 @@ class FileManager:
                 if(os.path.exists(dstPath_File)):
                     # Copy was successfuly, update its last known directory
                     self.UpdateLastKnownDir(fileInfo, dstPath_File)
+                    progress = progress + 1
+                    print(str(progress) + ' out of ' + str(len(videoPaths)) + ' files complete')
                 else:
                     print('Failed to copy file')
                     return False
@@ -442,6 +445,7 @@ class FileManager:
                 os.remove(sourceDir)
             else:
                 return False
+        print(str(progress) + 'files were successfully added')
         return True
 
     # Copy videos from an existing directory and paste it to a new target dir
@@ -478,6 +482,7 @@ class FileManager:
                     return False
             else:
                 return False
+        print(str(progress) + 'files were successfully added')
         return True
 
 
