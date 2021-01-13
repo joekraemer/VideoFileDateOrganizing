@@ -1,16 +1,16 @@
 import os
 import glob
 import pytz
-import datetime
-import time
 import calendar
 import pywintypes
 import shutil
 import pickle
+import datetime
+import time
 from collections import defaultdict
 from win32com.propsys import propsys, pscon
+from datetime import time as dt_time
 from pathlib import Path
-import datetime
 
 current_dir_path = os.path.dirname(os.path.realpath(__file__))
 videoExtensions = ["*.mp4", "*.mov", "*.MP4", "*.avi", "*.mkv", "*.m4v"]
@@ -43,21 +43,28 @@ class FileInformation:
 
 
 class FileClusterManager:
-    def __init__(self, date, path):
+    def __init__(self, date, path, maxOnDiskFiles=15, maxUnfolderedSize=3, maxOnDiskSize=10000):
         self.Size = 0
         # List of FileInformation Classes
         self.Files = []
         self.FilesExistOnDisk = False
         self.Date = date
+        self.MaxOnDiskFiles = maxOnDiskFiles
+        self.MaxOnDiskSizes = maxOnDiskSize
+        self.MaxUnfolderedSize = maxOnDiskFiles
 
         self.Path = os.path.join(
             path, str(self.Date.year), str(self.Date.month))
+        self.ClusterName = str(self.Date)
+
+        # Name of folder when the FCM is instructed to put the files into a folder
+        self.ClusterFolderName = str(self.Date.year)
 
     # Add files to this cluster
     def Add(self, file):
         self.Files.append(file)
         self.FilesExistOnDisk = True
-
+        self.Size = self.Size + file.Size
         # Here we should make the call to move the file to the cluster
         # to create a folder and move existing files
         return
@@ -71,20 +78,43 @@ class FileClusterManager:
 
     # Return the Path that files for this cluster should go to
     def GetPath(self):
+        # First, do a check to see if we should create a folder for this cluster
+        # Should only create the folder once
+        if(self.Number == self.MaxUnfolderedSize):
+            self.CreateClusterFolder
+            self.MoveFilesToClusterFolder
+
+        if((self.Number == self.MaxOnDiskFiles) or (self.Size >= self.MaxOnDiskSizes)):
+            self.CreateClusterFolder
+            self.MoveFilesToClusterFolder
+
         return self.Path
 
-    # TODO
-    # Finding Existing files in cluster and moving them to a
-    # new folder because there are now too many to just free roam
-    def IsSecondFile(self):
-        # move existing file into this new date folder
-        for files in self.GetFiles(dt):
-            newFile = os.path.join(pathDestination, files.name)
-            Path.rename(files, newFile)
+    # Create a folder with the day
+    def CreateClusterFolder(self):
+        clusterFolder = os.path.join(self.Path, self.ClusterFolderName)
+        # Make sure the folder doesn't already exist
+        if not (os.path.isdir(clusterFolder)):
+            MakeFolder(clusterFolder)
+            self.Path = clusterFolder
+        return
 
-            # update file in the dictionary
-            self.DeleteEntry(dt)
-            self.Add(newFile, dt)
+    # Move each file associated with this cluster to a new folder
+    def MoveFilesToClusterFolder(self):
+        for file in self.Files:
+            self.MoveFileToNewFolder(file.LastDirectoryFound, self.Path)
+        return
+
+    # Move file to a new directory
+    def MoveFileToNewFolder(self, file, dstDir):
+        shutil.move(file, dstDir)
+
+        # Make sure the move is complete
+        historicalSize = -1
+        while (historicalSize != os.path.getsize(dstDir)):
+            historicalSize = os.path.getsize(dstDir)
+            time.sleep(1)
+        return
 
 
 def ConvertToDateTime(pywintime):
@@ -97,6 +127,8 @@ def ConvertToDateTime(pywintime):
         second=pywintime.second
     )
     return now_datetime
+
+# Recursively makes folders until the path exists
 
 
 def MakeFolder(path):
@@ -161,10 +193,15 @@ class FileManager:
 
         self.firstDate = datetime.date(2020, 6, 15)
         self.lastDate = datetime.date(1987, 6, 15)
+        self.LastTimeUpdated = datetime.datetime(1987,1,1)
 
     # Add file directory to one of the date keys
     # TODO prevent a double add
     # Add new FileInformation object to the dictionary
+
+    def UpdateLastTimeUpdated(self, dt):
+        self.LastTimeUpdated = dt
+
     def Add(self, fileInfo):
 
         # Check to see if there is already a key in the dictionary
@@ -402,7 +439,7 @@ class FileManager:
         historicalSize = -1
         while (historicalSize != os.path.getsize(dstDir)):
             historicalSize = os.path.getsize(dstDir)
-            time.sleep(3)
+            time.sleep(1)
         return True
 
     # Cut videos from an existing directory and move it to a new target dir
@@ -436,7 +473,8 @@ class FileManager:
                     # Copy was successfuly, update its last known directory
                     self.UpdateLastKnownDir(fileInfo, dstPath_File)
                     progress = progress + 1
-                    print(str(progress) + ' out of ' + str(len(videoPaths)) + ' files complete')
+                    print(str(progress) + ' out of ' +
+                          str(len(videoPaths)) + ' files complete')
                 else:
                     print('Failed to copy file')
                     return False
@@ -450,6 +488,7 @@ class FileManager:
 
     # Copy videos from an existing directory and paste it to a new target dir
     def CopyVideosFromDirectory(self, sourceDir, targetDir):
+
         # Find all the videos in the sourceDir
         videoPaths = self.FindItemsInDirectory(sourceDir, videoExtensions)
         progress = 0
@@ -463,6 +502,7 @@ class FileManager:
                 dstPath = self.files_by_date[fileInfo.DateTime.date(
                 )].GetPath()
             else:
+                # If there is no FCM, then create one
                 self.Add(fileInfo)
                 dstPath = self.files_by_date[fileInfo.DateTime.date(
                 )].GetPath()
@@ -470,21 +510,34 @@ class FileManager:
             # Add the file name to the end of the destination directory
             dstPath_File = os.path.join(dstPath, fileInfo.Name)
 
-            if(self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath)):
-                # Confirm that the file has been copied
-                if(os.path.exists(dstPath_File)):
-                    # Copy was successfuly, update its last known directory
-                    self.UpdateLastKnownDir(fileInfo, dstPath_File)
-                    progress = progress + 1
-                    print(str(progress) + ' out of ' + str(len(videoPaths)) + ' files complete')
+            # See if we can skip the copy 
+            if not (os.path.isfile(dstPath_File)):
+                if(self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath)):
+                    # Confirm that the file has been copied
+                    if(os.path.exists(dstPath_File)):
+                        # Copy was successfuly, update its last known directory
+                        self.UpdateLastKnownDir(fileInfo, dstPath_File)
+                        progress = progress + 1
+                        print(str(progress) + ' out of ' +
+                            str(len(videoPaths)) + ' files complete')
+                    else:
+                        print('Failed to copy file')
+                        return False
                 else:
-                    print('Failed to copy file')
                     return False
             else:
-                return False
-        print(str(progress) + 'files were successfully added')
+                print('File Already Exists')
+        print(str(progress) + ' files were successfully added')
         return True
 
+    # Last time a directory was modified
+    def LastTimeModified(self, dir):
+        
+        mTime = os.path.getmtime(dir)
+        dt = datetime.datetime.fromtimestamp(mTime)
+        return dt
+
+    
 
 def main():
 
@@ -493,23 +546,21 @@ def main():
     if(ref.FindExistingDictionary(targetDirectory)):
         print("Existing Dictionary Found")
 
-        # TODO Decide if we need to update the dictionary by looking at the
-        # file modified times of the highest level folders vs the pickle file
-
-    else:
-
+    lstMod = ref.LastTimeModified(targetDirectory)
+    lstUpdated = ref.LastTimeUpdated
+    if(lstMod>lstUpdated):
         # Add videos to dictionary that are already in the Target Directory
         ref.IndexVideosInDirectory(targetDirectory)
 
-        if Destructive:
-            ref.DeletePhotosInDirectory(sourceDirectory)
+    if Destructive:
+        ref.DeletePhotosInDirectory(sourceDirectory)
 
-            # Add videos to dictionary and then copy them
-            ref.CutVideosFromDirectory(sourceDirectory, targetDirectory)
+        # Add videos to dictionary and then copy them
+        ref.CutVideosFromDirectory(sourceDirectory, targetDirectory)
 
-        else:
-            # Add videos to dictionary and then delete them
-            ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory)
+    else:
+        # Add videos to dictionary and then delete them
+        ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory)
 
     ref.PrintNumberOfMissingDatesPerMonth(2019)
     ref.SaveDictionary(targetDirectory, dictionaryFilename)
