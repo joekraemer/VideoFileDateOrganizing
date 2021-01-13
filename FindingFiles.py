@@ -17,9 +17,8 @@ videoExtensions = ["*.mp4", "*.mov", "*.MP4", "*.avi", "*.mkv", "*.m4v"]
 photoExtensions = ["*.jpg", "*.heic", "*.ARW", "*.png", "*.dng", "*.jpeg"]
 pickleExtensions = ["*.pickle"]
 Destructive = False
-largeDateNumberLimit = 10
-targetDirectory = 'D:/OneSecond/Testing/Destination'
-sourceDirectory = 'D:/OneSecond/Testing/Source'
+targetDirectory = 'E:/SSD\Media/OneSecond/Organized'
+sourceDirectory = 'F:\Content\2019'
 dictionaryFilename = 'dictionary.pickle'
 
 
@@ -43,14 +42,14 @@ class FileInformation:
 
 
 class FileClusterManager:
-    def __init__(self, date, path, maxOnDiskFiles=15, maxUnfolderedSize=3, maxOnDiskSize=10000):
+    def __init__(self, date, path, maxOnDiskFiles=5, maxUnfolderedSize=3, maxOnDiskSizeGB=10):
         self.Size = 0
         # List of FileInformation Classes
         self.Files = []
         self.FilesExistOnDisk = False
         self.Date = date
         self.MaxOnDiskFiles = maxOnDiskFiles
-        self.MaxOnDiskSizes = maxOnDiskSize
+        self.MaxOnDiskSizes = maxOnDiskSizeGB*(1073741824)
         self.MaxUnfolderedSize = maxOnDiskFiles
 
         self.Path = os.path.join(
@@ -85,8 +84,7 @@ class FileClusterManager:
             self.MoveFilesToClusterFolder
 
         if((self.Number == self.MaxOnDiskFiles) or (self.Size >= self.MaxOnDiskSizes)):
-            self.CreateClusterFolder
-            self.MoveFilesToClusterFolder
+            return None
 
         return self.Path
 
@@ -151,10 +149,24 @@ def MakeFolder(path):
 
 
 def GetCreationDateFromVideo(file):
-    properties = propsys.SHGetPropertyStoreFromParsingName(str(file))
-    dt = properties.GetValue(pscon.PKEY_Media_DateEncoded).GetValue()
-    dt = ConvertToDateTime(dt)
-    return dt
+    if(file.exists()):
+        try:
+            properties = propsys.SHGetPropertyStoreFromParsingName(str(file))
+            dt = properties.GetValue(pscon.PKEY_Media_DateEncoded).GetValue()
+            dt = ConvertToDateTime(dt)
+            return dt
+        except Exception:
+            print('Not able to extract date with propsys')
+
+            try:
+                mtime = datetime.datetime.fromtimestamp(file.stat().st_mtime)
+                print('Sucess with datetime')
+                return mtime
+            except Exception:
+                    print('Not able to extract date with Path.stat()')
+                    pass
+    else:
+        print(str(file.name) + 'File does not exist')
 
 
 def MakeFoldersForMonths(dir, earliestDate, latestDate):
@@ -193,7 +205,7 @@ class FileManager:
 
         self.firstDate = datetime.date(2020, 6, 15)
         self.lastDate = datetime.date(1987, 6, 15)
-        self.LastTimeUpdated = datetime.datetime(1987,1,1)
+        self.LastTimeUpdated = datetime.datetime(1987, 1, 1)
 
     # Add file directory to one of the date keys
     # TODO prevent a double add
@@ -464,25 +476,28 @@ class FileManager:
                 dstPath = self.files_by_date[fileInfo.DateTime.date(
                 )].GetPath()
 
-            # Add the file name to the end of the destination directory
-            dstPath_File = os.path.join(dstPath, fileInfo.Name)
+            if (dstPath == None):
+                # Folder is full and file should not be copied
 
-            if(self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath_File)):
-               # Confirm that the file has been copied
-                if(os.path.exists(dstPath_File)):
-                    # Copy was successfuly, update its last known directory
-                    self.UpdateLastKnownDir(fileInfo, dstPath_File)
-                    progress = progress + 1
-                    print(str(progress) + ' out of ' +
-                          str(len(videoPaths)) + ' files complete')
+                # Add the file name to the end of the destination directory
+                dstPath_File = os.path.join(dstPath, fileInfo.Name)
+
+                if(self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath_File)):
+                    # Confirm that the file has been copied
+                    if(os.path.exists(dstPath_File)):
+                        # Copy was successfuly, update its last known directory
+                        self.UpdateLastKnownDir(fileInfo, dstPath_File)
+                        progress = progress + 1
+                        print(str(progress) + ' out of ' +
+                              str(len(videoPaths)) + ' files complete')
+                    else:
+                        print('Failed to copy file')
+                        return False
+
+                    # Now that it is added to the dictionary, we can delete it from the old directory
+                    os.remove(sourceDir)
                 else:
-                    print('Failed to copy file')
                     return False
-
-                # Now that it is added to the dictionary, we can delete it from the old directory
-                os.remove(sourceDir)
-            else:
-                return False
         print(str(progress) + 'files were successfully added')
         return True
 
@@ -507,37 +522,39 @@ class FileManager:
                 dstPath = self.files_by_date[fileInfo.DateTime.date(
                 )].GetPath()
 
-            # Add the file name to the end of the destination directory
-            dstPath_File = os.path.join(dstPath, fileInfo.Name)
+            if (dstPath != None):
+                # Folder not is full and file should be copied
 
-            # See if we can skip the copy 
-            if not (os.path.isfile(dstPath_File)):
-                if(self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath)):
-                    # Confirm that the file has been copied
-                    if(os.path.exists(dstPath_File)):
-                        # Copy was successfuly, update its last known directory
-                        self.UpdateLastKnownDir(fileInfo, dstPath_File)
-                        progress = progress + 1
-                        print(str(progress) + ' out of ' +
-                            str(len(videoPaths)) + ' files complete')
+                # Add the file name to the end of the destination directory
+                dstPath_File = os.path.join(dstPath, fileInfo.Name)
+
+                # See if we can skip the copy
+                if not (os.path.isfile(dstPath_File)):
+                    if(self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath)):
+                        # Confirm that the file has been copied
+                        if(os.path.exists(dstPath_File)):
+                            # Copy was successfuly, update its last known directory
+                            self.UpdateLastKnownDir(fileInfo, dstPath_File)
+                            progress = progress + 1
+                            print(str(progress) + ' out of ' +
+                                  str(len(videoPaths)) + ' files complete')
+                        else:
+                            print('Failed to copy file')
+                            return False
                     else:
-                        print('Failed to copy file')
                         return False
                 else:
-                    return False
-            else:
-                print('File Already Exists')
+                    print('File Already Exists')
         print(str(progress) + ' files were successfully added')
         return True
 
     # Last time a directory was modified
     def LastTimeModified(self, dir):
-        
+
         mTime = os.path.getmtime(dir)
         dt = datetime.datetime.fromtimestamp(mTime)
         return dt
 
-    
 
 def main():
 
@@ -548,9 +565,10 @@ def main():
 
     lstMod = ref.LastTimeModified(targetDirectory)
     lstUpdated = ref.LastTimeUpdated
-    if(lstMod>lstUpdated):
-        # Add videos to dictionary that are already in the Target Directory
-        ref.IndexVideosInDirectory(targetDirectory)
+    # if(lstMod > lstUpdated):
+    # Add videos to dictionary that are already in the Target Directory
+
+    ref.IndexVideosInDirectory(targetDirectory)
 
     if Destructive:
         ref.DeletePhotosInDirectory(sourceDirectory)
@@ -563,6 +581,8 @@ def main():
         ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory)
 
     ref.PrintNumberOfMissingDatesPerMonth(2019)
+    ref.PrintNumberOfMissingDatesPerMonth(2020)
+    ref.PrintNumberOfMissingDatesPerYear()
     ref.SaveDictionary(targetDirectory, dictionaryFilename)
 
 
