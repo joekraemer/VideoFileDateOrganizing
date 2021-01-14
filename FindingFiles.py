@@ -53,7 +53,7 @@ class FileClusterManager:
         self.Size = 0
         # List of FileInformation Classes
         self.Files = []
-        self.FilesExistOnDisk = False
+        self.FilesExistOffDisk = False
         self.Date = date
         self.MaxOnDiskFiles = maxOnDiskFiles
         self.MaxOnDiskSizes = maxOnDiskSizeGB*(1073741824)
@@ -83,7 +83,6 @@ class FileClusterManager:
                     return
         # file doesn't exist in this FCM, add it to the list
         self.Files.append(file)
-        self.FilesExistOnDisk = True
         self.Size = self.Size + file.Size
         return
 
@@ -103,6 +102,7 @@ class FileClusterManager:
             self.MoveFilesToClusterFolder
 
         if((self.Number == self.MaxOnDiskFiles) or (self.Size >= self.MaxOnDiskSizes)):
+            self.FilesExistOffDisk = True
             return None
 
         return self.Path
@@ -446,7 +446,7 @@ class FileManager:
         self.DoSomethingForEverydateInRange(
             self.AppendPandasSeries, startDt, endDt)
         data = pd.Series(self.GraphNumberOfFiles)
-        data.index = pd.date_range( startDt, endDt, freq='1D')
+        data.index = pd.date_range(startDt, endDt, freq='1D')
         return data
 
     def AppendPandasSeries(self, dt):
@@ -669,6 +669,9 @@ class FileManager:
         # Find all the videos in the sourceDir
         videoPaths = self.FindItemsInDirectory(sourceDir, videoExtensions)
         progress = 0
+        copied = 0
+        failedToCopy = []
+        addedButNotMoved = 0
         for filePath in videoPaths:
 
             # Create a new FileInformation object given the path
@@ -684,6 +687,7 @@ class FileManager:
                 dstPath = self.files_by_date[fileInfo.DateTime.date(
                 )].GetPath()
 
+            # GetPath returns None if the folder is full
             if (dstPath != None):
                 # Folder not is full and file should be copied
 
@@ -697,17 +701,28 @@ class FileManager:
                         if(os.path.exists(dstPath_File)):
                             # Copy was successfuly, update its last known directory
                             self.UpdateLastKnownDir(fileInfo, dstPath_File)
-                            progress = progress + 1
+                            copied = copied + 1
                             print(str(progress) + ' out of ' +
                                   str(len(videoPaths)) + ' files complete')
                         else:
+                            failedToCopy.append(fileInfo.Name)
                             print('Failed to copy file')
                             return False
                     else:
+                        failedToCopy.append(fileInfo.Name)
+                        print('Failed to copy file')
                         return False
                 else:
                     print('File Already Exists')
-        print(str(progress) + ' files were successfully added')
+            else:
+                addedButNotMoved = addedButNotMoved + 1
+
+            progress = progress + 1
+
+        print(str(progress) + ' files processed')
+        print(str(copied) + 'files copied')
+        print(str(addedButNotMoved) + 'files added but not moved')
+        print(str(len(failedToCopy)) + 'files failted to copy')
         return True
 
     # Last time a directory was modified
@@ -716,6 +731,19 @@ class FileManager:
         mTime = os.path.getmtime(dir)
         dt = datetime.datetime.fromtimestamp(mTime)
         return dt
+
+    # Returns the lastest time any one of the highest level folders in a dir were modified
+    def OrganizedFoldersLastTimeModified(self, dir):
+        dir_list = [f.path for f in os.scandir(dir) if f.is_dir()]
+
+        mostRecent = datetime.datetime(1990, 1, 1)
+
+        for dir in dir_list:
+            lastMod = self.LastTimeModified(dir)
+            if lastMod > mostRecent:
+                mostRecent = lastMod
+
+        return mostRecent
 
     def date_heatmap_plot(self, firstDt=None, lastDt=None):
         '''An example for `date_heatmap`.
@@ -776,12 +804,13 @@ def main():
     if(ref.FindExistingDictionary(targetDirectory)):
         print("Existing Dictionary Found")
 
-    lstMod = ref.LastTimeModified(targetDirectory)
+    lstMod = ref.OrganizedFoldersLastTimeModified(targetDirectory)
     lstUpdated = ref.LastTimeUpdated
     if(lstMod > lstUpdated):
         # Add videos to dictionary that are already in the Target Directory
         print('Target Directory Updated, rescanning...')
-        # ref.IndexVideosInDirectory(targetDirectory)
+        ref.IndexVideosInDirectory(targetDirectory)
+        ref.UpdateLastTimeUpdated(datetime.datetime.now())
 
     if sourceDirectory != None:
         if Destructive:
@@ -794,14 +823,11 @@ def main():
             # Add videos to dictionary and then delete them
             ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory)
 
-    ref.PrintNumberOfMissingDatesPerMonth(2017)
-    ref.PrintNumberOfMissingDatesPerMonth(2018)
-    ref.PrintNumberOfMissingDatesPerMonth(2019)
     ref.PrintNumberOfMissingDatesPerMonth(2020)
-    ref.PrintNumberOfMissingDatesPerYear()
+    # ref.PrintNumberOfMissingDatesPerYear()
 
-    start = datetime.date(2017, 1, 1)
-    end = datetime.date(2018, 12, 31)
+    start = datetime.date(2020, 1, 1)
+    end = datetime.date(2020, 12, 31)
     ref.date_heatmap_plot(start, end)
 
     ref.SaveDictionary(targetDirectory, dictionaryFilename)
