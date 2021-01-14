@@ -59,13 +59,25 @@ class FileClusterManager:
         # Name of folder when the FCM is instructed to put the files into a folder
         self.ClusterFolderName = str(self.Date.year)
 
+    # TODO: Prevent double adding files. Instead should maybe update the 
+    # last known location. 
     # Add files to this cluster
     def Add(self, file):
+        # See if this file already exists
+        for f in self.Files:
+            if f.Name == file.Name:
+                # file is already in the FCM list, don't add it
+                if f.ExistsInCurrentDir:
+                    return
+                else:
+                    # file is not in the cluster folder, so we should update its lastKnownLocation
+                    f.LastDirectoryFound = file.LastDirectoryFound
+                    # Don't add this file and just return instead
+                    return
+        # file doesn't exist in this FCM, add it to the list 
         self.Files.append(file)
         self.FilesExistOnDisk = True
         self.Size = self.Size + file.Size
-        # Here we should make the call to move the file to the cluster
-        # to create a folder and move existing files
         return
 
     # How many files in this cluster
@@ -163,8 +175,8 @@ def GetCreationDateFromVideo(file):
                 print('Sucess with datetime')
                 return mtime
             except Exception:
-                    print('Not able to extract date with Path.stat()')
-                    pass
+                print('Not able to extract date with Path.stat()')
+                pass
     else:
         print(str(file.name) + 'File does not exist')
 
@@ -218,7 +230,7 @@ class FileManager:
 
         # Check to see if there is already a key in the dictionary
         if (self.ValueExists(fileInfo.DateTime.date())):
-            # Add to existing FileClusterManager
+
             self.files_by_date[fileInfo.DateTime.date()].Add(fileInfo)
         else:
             # Create a new File Cluster Manager
@@ -580,6 +592,8 @@ def main():
         # Add videos to dictionary and then delete them
         ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory)
 
+    ref.PrintNumberOfMissingDatesPerMonth(2017)
+    ref.PrintNumberOfMissingDatesPerMonth(2018)
     ref.PrintNumberOfMissingDatesPerMonth(2019)
     ref.PrintNumberOfMissingDatesPerMonth(2020)
     ref.PrintNumberOfMissingDatesPerYear()
