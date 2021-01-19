@@ -17,15 +17,13 @@ from datetime import time as dt_time
 from pathlib import Path
 
 current_dir_path = os.path.dirname(os.path.realpath(__file__))
-videoExtensions = ["*.mp4", "*.mov", "*.MP4", "*.avi", "*.mkv", "*.m4v"]
-photoExtensions = ["*.jpg", "*.heic", "*.ARW", "*.png", "*.dng", "*.jpeg"]
 DAYS = ['Sun.', 'Mon.', 'Tues.', 'Wed.', 'Thurs.', 'Fri.', 'Sat.']
 MONTHS = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'June',
           'July', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.']
 pickleExtensions = ["*.pickle"]
 Destructive = False
-targetDirectory = 'E:/SSD\Media/OneSecond/Organized'
-sourceDirectory = None
+targetDirectory = 'E:/SSD/Media/OneSecond/Organized'
+sourceDirectory = 'F:\Backups\WinniesOneSecond'
 dictionaryFilename = 'OneSecondDictionary.pickle'
 
 
@@ -302,13 +300,25 @@ def date_heatmap(series, start=None, end=None, mean=False, ax=None, **kwargs):
 
 class FileManager:
 
-    def __init__(self):
+    def __init__(self, vidExt=None, photoExt=None):
         # dictionary of file cluster managers by date
         self.files_by_date = {}
 
         self.firstDate = datetime.date(2020, 6, 15)
         self.lastDate = datetime.date(1987, 6, 15)
         self.LastTimeUpdated = datetime.datetime(1987, 1, 1)
+
+        # helpful reference values
+        if vidExt == None:
+            self.videoExtensions = ["*.mp4", "*.mov",
+                                    "*.MP4", "*.avi", "*.mkv", "*.m4v"]
+        else:
+            self.videoExtensions = vidExt
+        if photoExt == None:
+            self.photoExtensions = ["*.jpg", "*.heic",
+                                    "*.ARW", "*.png", "*.dng", "*.jpeg"]
+        else:
+            self.photoExtensions = photoExt
 
         # Strictly used for graphing
         self.GraphNumberOfFiles = []
@@ -472,15 +482,24 @@ class FileManager:
                 print("Missing Video for " + str(date))
         return
 
-    def PrintNumberOfMissingDatesPerYear(self):
+    def PrintNumberOfMissingDatesPerYear(self, year=0):
         # maybe I should make a function that is an iterator because this requires something similar to the CompleteCalendarFuncation
         # in the example the guy + 1 to the last date, but I'm not sure
-        for year in range(self.firstDate.year, self.lastDate.year):
-            daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAGivenYear(year)
+        if year == 0:
+            for year in range(self.firstDate.year, self.lastDate.year):
+                daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAGivenYear(
+                    year)
+                daysMissing = 365 - daysWithFiles
+                print(str(year) + " has " + str(daysWithFiles) +
+                      " days with files. Missing " + str(daysMissing) + " days")
+            return
+        else:
+            daysWithFiles = self.GetNumberOfDaysThatHaveFilesInAGivenYear(
+                year)
             daysMissing = 365 - daysWithFiles
             print(str(year) + " has " + str(daysWithFiles) +
                   " days with files. Missing " + str(daysMissing) + " days")
-        return
+            return
 
     def PrintNumberOfMissingDatesPerMonth(self, year):
         month = 1
@@ -720,9 +739,9 @@ class FileManager:
             progress = progress + 1
 
         print(str(progress) + ' files processed')
-        print(str(copied) + 'files copied')
-        print(str(addedButNotMoved) + 'files added but not moved')
-        print(str(len(failedToCopy)) + 'files failted to copy')
+        print(str(copied) + ' files copied')
+        print(str(addedButNotMoved) + ' files added but not moved')
+        print(str(len(failedToCopy)) + ' files failed to copy')
         return True
 
     # Last time a directory was modified
@@ -824,7 +843,7 @@ def main():
             ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory)
 
     ref.PrintNumberOfMissingDatesPerMonth(2020)
-    # ref.PrintNumberOfMissingDatesPerYear()
+    ref.PrintNumberOfMissingDatesPerYear(2020)
 
     start = datetime.date(2020, 1, 1)
     end = datetime.date(2020, 12, 31)
