@@ -1,301 +1,17 @@
-import os
-import glob
-import pytz
+import datetime
+import time
 import calendar
 import pywintypes
 import shutil
+import os
 import pickle
-import datetime
-import time
-import numpy as np
-import pandas as pd
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from collections import defaultdict
-from win32com.propsys import propsys, pscon
-from datetime import time as dt_time
 from pathlib import Path
+import pandas as pd
 
-current_dir_path = os.path.dirname(os.path.realpath(__file__))
-DAYS = ['Sun.', 'Mon.', 'Tues.', 'Wed.', 'Thurs.', 'Fri.', 'Sat.']
-MONTHS = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'June',
-          'July', 'Aug.', 'Sept.', 'Oct.', 'Nov.', 'Dec.']
-pickleExtensions = ["*.pickle"]
-Destructive = False
-targetDirectory = 'E:/SSD/Media/OneSecond/Organized'
-sourceDirectory = 'F:\Backups\WinniesOneSecond'
-dictionaryFilename = 'OneSecondDictionary.pickle'
-
-
-class FileInformation:
-    def __init__(self, lastDirFound):
-        self.LastDirectoryFound = lastDirFound
-        self.ExistsInCurrentDir = True
-
-        # Extract name
-        head_tail = os.path.split(lastDirFound)
-        self.Name = head_tail[1]
-
-        # Get Creation Date
-        dt = GetCreationDateFromVideo(lastDirFound)
-        self.DateTime = dt
-
-        self.Size = os.path.getsize(lastDirFound)
-        # Could add other relevent things like metadata or tags
-
-# Used when a cluster of files is large so that we can leave the files else where, but still track essential information about them
-
-
-class FileClusterManager:
-    def __init__(self, date, path, maxOnDiskFiles=5, maxUnfolderedSize=3, maxOnDiskSizeGB=10):
-        self.Size = 0
-        # List of FileInformation Classes
-        self.Files = []
-        self.FilesExistOffDisk = False
-        self.Date = date
-        self.MaxOnDiskFiles = maxOnDiskFiles
-        self.MaxOnDiskSizes = maxOnDiskSizeGB*(1073741824)
-        self.MaxUnfolderedSize = maxOnDiskFiles
-
-        self.Path = os.path.join(
-            path, str(self.Date.year), str(self.Date.month))
-        self.ClusterName = str(self.Date)
-
-        # Name of folder when the FCM is instructed to put the files into a folder
-        self.ClusterFolderName = str(self.Date.year)
-
-    # TODO: Prevent double adding files. Instead should maybe update the
-    # last known location.
-    # Add files to this cluster
-    def Add(self, file):
-        # See if this file already exists
-        for f in self.Files:
-            if f.Name == file.Name:
-                # file is already in the FCM list, don't add it
-                if f.ExistsInCurrentDir:
-                    return
-                else:
-                    # file is not in the cluster folder, so we should update its lastKnownLocation
-                    f.LastDirectoryFound = file.LastDirectoryFound
-                    # Don't add this file and just return instead
-                    return
-        # file doesn't exist in this FCM, add it to the list
-        self.Files.append(file)
-        self.Size = self.Size + file.Size
-        return
-
-    # How many files in this cluster
-    def Number(self):
-        return len(self.Files)
-
-    def GetFiles(self):
-        return self.Files
-
-    # Return the Path that files for this cluster should go to
-    def GetPath(self):
-        # First, do a check to see if we should create a folder for this cluster
-        # Should only create the folder once
-        if(self.Number == self.MaxUnfolderedSize):
-            self.CreateClusterFolder
-            self.MoveFilesToClusterFolder
-
-        if((self.Number == self.MaxOnDiskFiles) or (self.Size >= self.MaxOnDiskSizes)):
-            self.FilesExistOffDisk = True
-            return None
-
-        return self.Path
-
-    # Create a folder with the day
-    def CreateClusterFolder(self):
-        clusterFolder = os.path.join(self.Path, self.ClusterFolderName)
-        # Make sure the folder doesn't already exist
-        if not (os.path.isdir(clusterFolder)):
-            MakeFolder(clusterFolder)
-            self.Path = clusterFolder
-        return
-
-    # Move each file associated with this cluster to a new folder
-    def MoveFilesToClusterFolder(self):
-        for file in self.Files:
-            self.MoveFileToNewFolder(file.LastDirectoryFound, self.Path)
-        return
-
-    # Move file to a new directory
-    def MoveFileToNewFolder(self, file, dstDir):
-        shutil.move(file, dstDir)
-
-        # Make sure the move is complete
-        historicalSize = -1
-        while (historicalSize != os.path.getsize(dstDir)):
-            historicalSize = os.path.getsize(dstDir)
-            time.sleep(1)
-        return
-
-
-def ConvertToDateTime(pywintime):
-    now_datetime = datetime.datetime(
-        year=pywintime.year,
-        month=pywintime.month,
-        day=pywintime.day,
-        hour=pywintime.hour,
-        minute=pywintime.minute,
-        second=pywintime.second
-    )
-    return now_datetime
-
-# Recursively makes folders until the path exists
-
-
-def MakeFolder(path):
-    print(path)
-
-    if os.path.exists(path):
-        print('Path already exists')
-        return
-
-    head = os.path.split(path)[0]
-    if not os.path.exists(head):
-        MakeFolder(head)
-
-    # Create the directory
-    try:
-        os.mkdir(path)
-        print('Created folder: ', path)
-    except OSError as error:
-        print(error)
-
-
-def GetCreationDateFromVideo(file):
-    if(file.exists()):
-        try:
-            properties = propsys.SHGetPropertyStoreFromParsingName(str(file))
-            dt = properties.GetValue(pscon.PKEY_Media_DateEncoded).GetValue()
-            dt = ConvertToDateTime(dt)
-            return dt
-        except Exception:
-            print('Not able to extract date with propsys')
-
-            try:
-                mtime = datetime.datetime.fromtimestamp(file.stat().st_mtime)
-                print('Sucess with datetime')
-                return mtime
-            except Exception:
-                print('Not able to extract date with Path.stat()')
-                pass
-    else:
-        print(str(file.name) + 'File does not exist')
-
-
-def MakeFoldersForMonths(dir, earliestDate, latestDate):
-
-    # get the first year folder
-    year = earliestDate.year
-
-    while year <= latestDate.year:
-        # Make a folder for the year
-        path = os.path.join(dir, str(year))
-        MakeFolder(path)
-
-        if year == earliestDate.year:
-            month = earliestDate.month
-        else:
-            month = 1
-
-        if year == latestDate.year:
-            lastMonth = latestDate.month
-        else:
-            lastMonth = 12
-
-        while(month <= lastMonth):
-            path = os.path.join(dir, str(year), str(month))
-            MakeFolder(path)
-            month = month + 1
-
-        year = year + 1
-
-
-def date_heatmap(series, start=None, end=None, mean=False, ax=None, **kwargs):
-    '''Plot a calendar heatmap given a datetime series.
-
-    Arguments:
-        series (pd.Series):
-            A series of numeric values with a datetime index. Values occurring
-            on the same day are combined by sum.
-        start (Any):
-            The first day to be considered in the plot. The value can be
-            anything accepted by :func:`pandas.to_datetime`. The default is the
-            earliest date in the data.
-        end (Any):
-            The last day to be considered in the plot. The value can be
-            anything accepted by :func:`pandas.to_datetime`. The default is the
-            latest date in the data.
-        mean (bool):
-            Combine values occurring on the same day by mean instead of sum.
-        ax (matplotlib.Axes or None):
-            The axes on which to draw the heatmap. The default is the current
-            axes in the :module:`~matplotlib.pyplot` API.
-        **kwargs:
-            Forwarded to :meth:`~matplotlib.Axes.pcolormesh` for drawing the
-            heatmap.
-
-    Returns:
-        matplotlib.collections.Axes:
-            The axes on which the heatmap was drawn. This is set as the current
-            axes in the `~matplotlib.pyplot` API.
-    '''
-    # Combine values occurring on the same day.
-    dates = series.index.floor('D')
-    group = series.groupby(dates)
-    series = group.mean() if mean else group.sum()
-
-    # Parse start/end, defaulting to the min/max of the index.
-    start = pd.to_datetime(start or series.index.min())
-    end = pd.to_datetime(end or series.index.max())
-
-    # We use [start, end) as a half-open interval below.
-    end += np.timedelta64(1, 'D')
-
-    # Get the previous/following Sunday to start/end.
-    # Pandas and numpy day-of-week conventions are Monday=0 and Sunday=6.
-    start_sun = start - np.timedelta64((start.dayofweek + 1) % 7, 'D')
-    end_sun = end + np.timedelta64(7 - end.dayofweek - 1, 'D')
-
-    # Create the heatmap and track ticks.
-    num_weeks = (end_sun - start_sun).days // 7
-    heatmap = np.zeros((7, num_weeks))
-    ticks = {}  # week number -> month name
-    for week in range(num_weeks):
-        for day in range(7):
-            date = start_sun + np.timedelta64(7 * week + day, 'D')
-            if date.day == 1:
-                ticks[week] = MONTHS[date.month - 1]
-            if date.dayofyear == 1:
-                ticks[week] += f'\n{date.year}'
-            if start <= date < end:
-                heatmap[day, week] = series.get(date, 0)
-
-    # Get the coordinates, offset by 0.5 to align the ticks.
-    y = np.arange(8) - 0.5
-    x = np.arange(num_weeks + 1) - 0.5
-
-    # Plot the heatmap. Prefer pcolormesh over imshow so that the figure can be
-    # vectorized when saved to a compatible format. We must invert the axis for
-    # pcolormesh, but not for imshow, so that it reads top-bottom, left-right.
-    ax = ax or plt.gca()
-    mesh = ax.pcolormesh(x, y, heatmap, **kwargs)
-    ax.invert_yaxis()
-
-    # Set the ticks.
-    ax.set_xticks(list(ticks.keys()))
-    ax.set_xticklabels(list(ticks.values()))
-    ax.set_yticks(np.arange(7))
-    ax.set_yticklabels(DAYS)
-
-    # Set the current image and axes in the pyplot API.
-    plt.sca(ax)
-    plt.sci(mesh)
-
-    return ax
+from .fileclustermanager import FileClusterManager
+from .fileinformation import FileInformation
+from .folderfunctions import MakeFoldersForMonths, MakeFolder
+from .plotfiles import date_heatmap_plot
 
 
 class FileManager:
@@ -314,11 +30,14 @@ class FileManager:
                                     "*.MP4", "*.avi", "*.mkv", "*.m4v"]
         else:
             self.videoExtensions = vidExt
+
         if photoExt == None:
             self.photoExtensions = ["*.jpg", "*.heic",
                                     "*.ARW", "*.png", "*.dng", "*.jpeg"]
         else:
             self.photoExtensions = photoExt
+
+        self.pickleExtensions = ["*.pickle"]
 
         # Strictly used for graphing
         self.GraphNumberOfFiles = []
@@ -331,7 +50,7 @@ class FileManager:
     def UpdateLastTimeUpdated(self, dt):
         self.LastTimeUpdated = dt
 
-    def Add(self, fileInfo):
+    def Add(self, fileInfo, targetDir):
 
         # Check to see if there is already a key in the dictionary
         if (self.ValueExists(fileInfo.DateTime.date())):
@@ -339,7 +58,7 @@ class FileManager:
             self.files_by_date[fileInfo.DateTime.date()].Add(fileInfo)
         else:
             # Create a new File Cluster Manager
-            fcm = FileClusterManager(fileInfo.DateTime.date(), targetDirectory)
+            fcm = FileClusterManager(fileInfo.DateTime.date(), targetDir)
             # Add file info to the fcm
             fcm.Add(fileInfo)
             # Add fcm to the dictionary
@@ -591,7 +310,8 @@ class FileManager:
         return self.LoadPickleFile(directory, fileName, self.TestDictionary)
 
     def FindExistingDictionary(self, directory):
-        pickles = self.FindItemsInDirectory(directory, pickleExtensions, False)
+        pickles = self.FindItemsInDirectory(
+            directory, self.pickleExtensions, False)
 
         if len(pickles) > 0:
             # found an existing directory, only use the first one found
@@ -603,16 +323,17 @@ class FileManager:
 
     def IndexVideosInDirectory(self, directory):
         # find videos in the directory
-        existingVideos = self.FindItemsInDirectory(directory, videoExtensions)
+        existingVideos = self.FindItemsInDirectory(
+            directory, self.videoExtensions)
 
         # add video file to the dictionary
         for vid in existingVideos:
             fileInfo = FileInformation(vid)
-            self.Add(fileInfo)
+            self.Add(fileInfo, directory)
 
     def DeletePhotosInDirectory(self, directory):
         # find files that are photos
-        photoPaths = self.FindItemsInDirectory(directory, photoExtensions)
+        photoPaths = self.FindItemsInDirectory(directory, self.photoExtensions)
 
         # delete files that are photos
         for file in photoPaths:
@@ -640,7 +361,7 @@ class FileManager:
         # Should we delete videos from the sourceDir if the FileClusterManager is not accepting any more videos
 
         # Find all the videos in the sourceDir
-        videoPaths = self.FindItemsInDirectory(sourceDir, videoExtensions)
+        videoPaths = self.FindItemsInDirectory(sourceDir, self.videoExtensions)
         progress = 0
 
         for filePath in videoPaths:
@@ -653,7 +374,7 @@ class FileManager:
                 dstPath = self.files_by_date[fileInfo.DateTime.date(
                 )].GetPath()
             else:
-                self.Add(fileInfo)
+                self.Add(fileInfo, targetDir)
                 dstPath = self.files_by_date[fileInfo.DateTime.date(
                 )].GetPath()
 
@@ -686,7 +407,7 @@ class FileManager:
     def CopyVideosFromDirectory(self, sourceDir, targetDir):
 
         # Find all the videos in the sourceDir
-        videoPaths = self.FindItemsInDirectory(sourceDir, videoExtensions)
+        videoPaths = self.FindItemsInDirectory(sourceDir, self.videoExtensions)
         progress = 0
         copied = 0
         failedToCopy = []
@@ -702,7 +423,7 @@ class FileManager:
                 )].GetPath()
             else:
                 # If there is no FCM, then create one
-                self.Add(fileInfo)
+                self.Add(fileInfo, targetDir)
                 dstPath = self.files_by_date[fileInfo.DateTime.date(
                 )].GetPath()
 
@@ -764,93 +485,15 @@ class FileManager:
 
         return mostRecent
 
-    def date_heatmap_plot(self, firstDt=None, lastDt=None):
-        '''An example for `date_heatmap`.
-
-        Most of the sizes here are chosen arbitrarily to look nice with 1yr of
-        data. You may need to fiddle with the numbers to look right on other data.
-        '''
+    def PlotHeatMap(self, firstDt=None, lastDt=None):
         # Handle parameter defaults
         if firstDt == None:
             firstDt = self.firstDate
         if lastDt == None:
             lastDt = self.lastDate
-
-        # Major issue will be getting my information into this data structure
         ### Create Pandas Series ###
         self.ResetPandasSeries()
         s1 = self.CreatePandasSeries(firstDt, lastDt)
 
-        # Get some data, a series of values with datetime index.
-        # array of length 365 with values from 0 - 5
-        # data = np.random.randint(5, size=365)
-        # data = pd.Series(data)
-        # data.index = pd.date_range(
-        #   start='2017-01-01', end='2017-12-31', freq='1D')
-
-        # Create the figure. For the aspect ratio, one year is 7 days by 53 weeks.
-        # We widen it further to account for the tick labels and color bar.
-        figsize = plt.figaspect(7 / 56)
-        fig = plt.figure(figsize=figsize)
-
-        # Plot the heatmap with a color bar.
-        ax = date_heatmap(s1, edgecolor='black')
-        plt.colorbar(ticks=range(5), pad=0.02)
-
-        # Use a discrete color map with 5 colors (the data ranges from 0 to 4).
-        # Extending the color limits by 0.5 aligns the ticks in the color bar.
-        cmap = mpl.cm.get_cmap('Blues', 5)
-        plt.set_cmap(cmap)
-        plt.clim(-0.5, 4.5)
-
-        # Force the cells to be square. If this is set, the size of the color bar
-        # may look weird compared to the size of the heatmap. That can be corrected
-        # by the aspect ratio of the figure or scale of the color bar.
-        ax.set_aspect('equal')
-
-        # Save to a file. For embedding in a LaTeX doc, consider the PDF backend.
-        # http://sbillaudelle.de/2015/02/23/seamlessly-embedding-matplotlib-output-into-latex.html
-        fig.savefig('heatmapFiles.pdf', bbox_inches='tight')
-
-        # The firgure must be explicitly closed if it was not shown.
-        plt.close(fig)
-
-
-def main():
-
-    ref = FileManager()
-
-    if(ref.FindExistingDictionary(targetDirectory)):
-        print("Existing Dictionary Found")
-
-    lstMod = ref.OrganizedFoldersLastTimeModified(targetDirectory)
-    lstUpdated = ref.LastTimeUpdated
-    if(lstMod > lstUpdated):
-        # Add videos to dictionary that are already in the Target Directory
-        print('Target Directory Updated, rescanning...')
-        ref.IndexVideosInDirectory(targetDirectory)
-        ref.UpdateLastTimeUpdated(datetime.datetime.now())
-
-    if sourceDirectory != None:
-        if Destructive:
-            ref.DeletePhotosInDirectory(sourceDirectory)
-
-            # Add videos to dictionary and then copy them
-            ref.CutVideosFromDirectory(sourceDirectory, targetDirectory)
-
-        else:
-            # Add videos to dictionary and then delete them
-            ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory)
-
-    ref.PrintNumberOfMissingDatesPerMonth(2020)
-    ref.PrintNumberOfMissingDatesPerYear(2020)
-
-    start = datetime.date(2020, 1, 1)
-    end = datetime.date(2020, 12, 31)
-    ref.date_heatmap_plot(start, end)
-
-    ref.SaveDictionary(targetDirectory, dictionaryFilename)
-
-
-if __name__ == "__main__":
-    main()
+        date_heatmap_plot(firstDt, lastDt, s1)
+        return
