@@ -1,16 +1,16 @@
 import datetime
 
-from .FindingFiles import FindingFiles as FF
+from FindingFilesPackage import filemanager as fm
 
 Destructive = False
-targetDirectory = 'E:/SSD/Media/OneSecond/Organized'
-sourceDirectory = 'F:\Backups\WinniesOneSecond'
+targetDirectory = 'D:/target'
+sourceDirectory = 'D:/ResolveTestingOneSecond'
 dictionaryFilename = 'OneSecondDictionary.pickle'
 
 
 def main():
 
-    ref = FF.FileManager()
+    ref = fm.FileManager()
 
     if(ref.FindExistingDictionary(targetDirectory)):
         print("Existing Dictionary Found")

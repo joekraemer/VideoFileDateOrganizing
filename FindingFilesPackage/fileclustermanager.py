@@ -3,7 +3,7 @@ import time
 import shutil
 
 from .fileinformation import FileInformation
-from folderfunctions import MakeFolder
+from .folderfunctions import MakeFolder
 
 
 class FileClusterManager:

@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: FindingFiles",
+            "name": "Python: FindingVideosForVlogs",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/FindingFiles.py",
+            "program": "${workspaceFolder}/FindingFilesPackage/Test/FindingVideosForVlogs.py",
             "console": "integratedTerminal"
         }
     ]
