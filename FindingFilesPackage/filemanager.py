@@ -16,7 +16,9 @@ from .plotfiles import date_heatmap_plot
 
 class FileManager:
 
-    def __init__(self, vidExt=None, photoExt=None):
+    def __init__(self, vidExt=["*.mp4", "*.mov", "*.MP4", "*.avi", "*.mkv", "*.m4v"],
+                 photoExt=["*.jpg", "*.heic", "*.ARW", "*.png", "*.dng", "*.jpeg"],
+                 rawPhotoExt=["*.ARW", "*.dng"]):
         # dictionary of file cluster managers by date
         self.files_by_date = {}
 
@@ -24,19 +26,9 @@ class FileManager:
         self.lastDate = datetime.date(1987, 6, 15)
         self.LastTimeUpdated = datetime.datetime(1987, 1, 1)
 
-        # helpful reference values
-        if vidExt == None:
-            self.videoExtensions = ["*.mp4", "*.mov",
-                                    "*.MP4", "*.avi", "*.mkv", "*.m4v"]
-        else:
-            self.videoExtensions = vidExt
-
-        if photoExt == None:
-            self.photoExtensions = ["*.jpg", "*.heic",
-                                    "*.ARW", "*.png", "*.dng", "*.jpeg"]
-        else:
-            self.photoExtensions = photoExt
-
+        self.videoExtensions = vidExt
+        self.photoExtensions = photoExt
+        self.rawPhotoExtensions = rawPhotoExt
         self.pickleExtensions = ["*.pickle"]
 
         # Strictly used for graphing
@@ -77,7 +69,7 @@ class FileManager:
 
     # Find File in dictionary and update its last know directory
     def UpdateLastKnownDir(self, fileInfo, newDir):
-        if(self.ValueExists(fileInfo.DateTime.date())):
+        if (self.ValueExists(fileInfo.DateTime.date())):
             files = self.files_by_date[fileInfo.DateTime.date()].GetFiles()
             for f in files:
                 if f.Name == fileInfo.Name:
@@ -94,6 +86,14 @@ class FileManager:
                 ext = "**/" + ext
             pathList.extend(Path(srcDir).glob(ext))
         return pathList
+
+    def FindDifferentFormatFilesInDirectory(self, srcDir, fileName, extensionList, recursive=True):
+        """Used to find files with the same name but different extensions"""
+        name_list = []
+        for ext in extensionList:
+            new_format = fileName + ext
+            name_list.append(new_format)
+        return self.FindItemsInDirectory(srcDir, name_list, recursive)
 
     # Get the list of file Information objects on the date key
     def GetFiles(self, date):
@@ -115,7 +115,7 @@ class FileManager:
     def CompleteCalendarDictionary(self):
         yr = self.firstDate.year
 
-        while(yr <= self.lastDate.year):
+        while (yr <= self.lastDate.year):
 
             # determine if we are in one of bounding years, we can't exceede the bounds
             if yr == self.firstDate.year:
@@ -128,9 +128,9 @@ class FileManager:
             else:
                 limitMonth = 12
 
-            while(month <= limitMonth):
+            while (month <= limitMonth):
                 num_days = calendar.monthrange(yr, month)[1]
-                for day in range(1, num_days+1):
+                for day in range(1, num_days + 1):
                     date = datetime.date(yr, month, day)
                     # start each date off with a zero
                     self.files_by_date[date]
@@ -147,7 +147,7 @@ class FileManager:
 
         yr = firstDt.year
 
-        while(yr <= lastDt.year):
+        while (yr <= lastDt.year):
 
             # determine if we are in one of bounding years, we can't exceede the bounds
             if yr == firstDt.year:
@@ -160,9 +160,9 @@ class FileManager:
             else:
                 limitMonth = 12
 
-            while(month <= limitMonth):
+            while (month <= limitMonth):
                 num_days = calendar.monthrange(yr, month)[1]
-                for day in range(1, num_days+1):
+                for day in range(1, num_days + 1):
                     date = datetime.date(yr, month, day)
                     # Give the callback the date
                     callback(date)
@@ -238,7 +238,7 @@ class FileManager:
         while month <= 12:
             # increment the count
             runningCount = runningCount + \
-                self.GetNumberOfDaysThatHaveFilesInAMonth(month, year)
+                           self.GetNumberOfDaysThatHaveFilesInAMonth(month, year)
             month = month + 1
         return runningCount
 
@@ -267,7 +267,7 @@ class FileManager:
         with open(fileDir, 'wb') as handle:
             pickle.dump(self.files_by_date, handle,
                         protocol=pickle.HIGHEST_PROTOCOL)
-        if(os.path.exists(fileDir)):
+        if (os.path.exists(fileDir)):
             print('Dictionary Saved')
         return
 
@@ -295,12 +295,12 @@ class FileManager:
                     # Make sure that we actually moved the file onto the disk
                     if fileInfo.ExistsInCurrentDir:
                         path = fileInfo.File
-                        if(Path.exists(path)):
+                        if (Path.exists(path)):
                             pathsSuccessful = pathsSuccessful + 1
-                        if(pathsSuccessful >= depth):
+                        if (pathsSuccessful >= depth):
                             print("Test passed on found dictionary")
                             return True
-                        if(pathsChecked > depth):
+                        if (pathsChecked > depth):
                             return False
 
     def SaveDictionary(self, directory, fileName):
@@ -384,9 +384,9 @@ class FileManager:
                 # Add the file name to the end of the destination directory
                 dstPath_File = os.path.join(dstPath, fileInfo.Name)
 
-                if(self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath_File)):
+                if (self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath_File)):
                     # Confirm that the file has been copied
-                    if(os.path.exists(dstPath_File)):
+                    if (os.path.exists(dstPath_File)):
                         # Copy was successfuly, update its last known directory
                         self.UpdateLastKnownDir(fileInfo, dstPath_File)
                         progress = progress + 1
@@ -436,9 +436,9 @@ class FileManager:
 
                 # See if we can skip the copy
                 if not (os.path.isfile(dstPath_File)):
-                    if(self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath)):
+                    if (self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath)):
                         # Confirm that the file has been copied
-                        if(os.path.exists(dstPath_File)):
+                        if (os.path.exists(dstPath_File)):
                             # Copy was successfuly, update its last known directory
                             self.UpdateLastKnownDir(fileInfo, dstPath_File)
                             copied = copied + 1
@@ -454,6 +454,67 @@ class FileManager:
                         return False
                 else:
                     print('File Already Exists')
+            else:
+                addedButNotMoved = addedButNotMoved + 1
+
+            progress = progress + 1
+
+        print(str(progress) + ' files processed')
+        print(str(copied) + ' files copied')
+        print(str(addedButNotMoved) + ' files added but not moved')
+        print(str(len(failedToCopy)) + ' files failed to copy')
+        return True
+
+    # Find corresponding raw files for the jpgs in a folder
+    def CopyRAWFilesFromDirectory(self, goodPhotoDir, referenceDir):
+
+        # Find all the videos in the sourceDir
+        photoPaths = self.FindItemsInDirectory(goodPhotoDir, self.photoExtensions)
+        progress = 0
+        copied = 0
+        failedToCopy = []
+        addedButNotMoved = 0
+        for filePath in photoPaths:
+
+            # Create a new FileInformation object given the path
+            fileInfo = FileInformation(filePath)
+
+            # Create a new folder in the goodPhotoDir
+            dstPath = os.path.join(goodPhotoDir, 'RAWs')
+
+            if (dstPath != None):
+
+                # First find an associated raw files to the good photo
+                rawFiles = self.FindDifferentFormatFilesInDirectory(referenceDir, fileInfo.NameNoExt,
+                                                                    self.rawPhotoExtensions)
+
+                for raw in rawFiles:
+
+                    rawInfo = FileInformation(raw)
+
+                    # Add the file name to the end of the destination directory
+                    dstPath_File = os.path.join(dstPath, rawInfo.Name)
+
+                    # See if we can skip the copy
+                    if not (os.path.isfile(dstPath_File)):
+                        if self.CopyFileToDir(rawInfo.LastDirectoryFound, dstPath):
+                            # Confirm that the file has been copied
+                            if os.path.exists(dstPath_File):
+                                # Copy was successfully, update its last known directory
+                                self.UpdateLastKnownDir(fileInfo, dstPath_File)
+                                copied = copied + 1
+                                print(str(progress) + ' out of ' +
+                                      str(len(photoPaths)) + ' files complete')
+                            else:
+                                failedToCopy.append(fileInfo.Name)
+                                print('Failed to copy file')
+                                return False
+                        else:
+                            failedToCopy.append(fileInfo.Name)
+                            print('Failed to copy file')
+                            return False
+                    else:
+                        print('File Already Exists')
             else:
                 addedButNotMoved = addedButNotMoved + 1
 

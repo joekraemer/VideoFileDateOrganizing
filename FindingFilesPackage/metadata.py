@@ -23,14 +23,14 @@ def GetCreationDateFromVideo(file):
             dt = ConvertToDateTime(dt)
             return dt
         except Exception:
-            print('Not able to extract date with propsys')
+            # print('Not able to extract date with propsys')
 
             try:
                 mtime = datetime.datetime.fromtimestamp(file.stat().st_mtime)
-                print('Sucess with datetime')
+                # print('Sucess with datetime')
                 return mtime
             except Exception:
-                print('Not able to extract date with Path.stat()')
+                # print('Not able to extract date with Path.stat()')
                 pass
     else:
         print(str(file.name) + 'File does not exist')

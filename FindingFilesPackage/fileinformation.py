@@ -12,6 +12,10 @@ class FileInformation:
         head_tail = os.path.split(lastDirFound)
         self.Name = head_tail[1]
 
+        # Remove ext
+        head_tail = os.path.splitext(self.Name)
+        self.NameNoExt = head_tail[0]
+
         # Get Creation Date
         dt = GetCreationDateFromVideo(lastDirFound)
         self.DateTime = dt
