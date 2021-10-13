@@ -356,6 +356,19 @@ class FileManager:
             time.sleep(1)
         return True
 
+    # A blocking file cut function
+    def CutFileToDir(self, srcDir, dstDir):
+        if (self.CopyFileToDir(srcDir, dstDir)):
+            # Confirm that the file has been copied
+            if (os.path.exists(dstDir)):
+                # Copy was successfuly, remove it from its past directory
+                os.remove(srcDir)
+                return True
+            else:
+                print('Failed to copy file')
+                return False
+        else:
+            return False
     # Cut videos from an existing directory and move it to a new target dir
     def CutVideosFromDirectory(self, sourceDir, targetDir):
         # Should we delete videos from the sourceDir if the FileClusterManager is not accepting any more videos
@@ -465,6 +478,33 @@ class FileManager:
         print(str(len(failedToCopy)) + ' files failed to copy')
         return True
 
+    def _getMinMaxTimestamp(self, list_of_files):
+        """Returns a tuple of the min and max timestamp of a list of files"""
+
+
+        if len(list_of_files)>0:
+            earliest = list_of_files[-1].DateTime
+            latest = list_of_files[-1].DateTime
+
+            for file in list_of_files:
+                if file.DateTime > latest:
+                    latest = file.DateTime
+                if file.DateTime < earliest:
+                    earliest = file.DateTime
+
+            return earliest, latest
+        else:
+            return None
+
+    def _withinTimeRange(self, min, max, time, time_range_milliseconds):
+        min_buffer = min - datetime.timedelta(milliseconds=time_range_milliseconds)
+        max_buffer = max + datetime.timedelta(milliseconds=time_range_milliseconds)
+
+        if time > min_buffer and time < max_buffer:
+            return True
+        else:
+            return False
+
     # Find corresponding raw files for the jpgs in a folder
     def CopyRAWFilesFromDirectory(self, goodPhotoDir, referenceDir):
 
@@ -475,7 +515,6 @@ class FileManager:
         failedToCopy = []
         addedButNotMoved = 0
         for filePath in photoPaths:
-
             # Create a new FileInformation object given the path
             fileInfo = FileInformation(filePath)
 
@@ -523,6 +562,76 @@ class FileManager:
         print(str(progress) + ' files processed')
         print(str(copied) + ' files copied')
         print(str(addedButNotMoved) + ' files added but not moved')
+        print(str(len(failedToCopy)) + ' files failed to copy')
+        return True
+
+    def GroupBurstPhotosInDirectory(self, dir, time_range=500, photo_extensions=["*.jpeg", "*.jpg"]):
+
+        # Find all the photos in the directory
+        photoPaths = self.FindItemsInDirectory(dir, photo_extensions)
+
+        file_photo = []
+        for filePath in photoPaths:
+            # Create a new FileInformation object given the path
+            fileInfo = FileInformation(filePath)
+            file_photo.append(fileInfo)
+
+        progress = 0
+        copied = 0
+        failedToCopy = []
+        addedButNotMoved = 0
+
+        folder_creation = []
+        # here I will make a list of lists where each list is
+        for photo in file_photo:
+            match_found = False
+            # Find if there is a matching list
+            for fldr in folder_creation:
+                # protect against zero-length
+                if len(fldr) > 0:
+                    # see if the file would fit in the folder
+                    min, max = self._getMinMaxTimestamp(fldr)
+                    if self._withinTimeRange(min, max, photo.DateTime, time_range):
+                        # append photo to the matching list and then continue to the next photo
+                        fldr.append(photo)
+                        match_found = True
+                        break
+
+            if not match_found:
+            # if no matching folders are found, create a new "folder" ( in this case a list )
+                folder_creation.append([photo])
+
+        # create new directories for each of the stacks
+        for fldr in folder_creation:
+            # don't want to make folders unless there is more than one photo
+            if len(fldr) > 1:
+                # Create a new folder
+                dstPath = os.path.join(dir, str(fldr[-1].NameNoExt))
+
+                # Destructively move the files to the new folder
+                for photo in fldr:
+                    # Add the file name to the end of the destination directory
+                    dstPath_File = os.path.join(dstPath, photo.Name)
+
+                    # See if we can skip the copy
+                    if not (os.path.isfile(dstPath_File)):
+                        if self.CutFileToDir(photo.LastDirectoryFound, dstPath):
+                            # Copy was successfully, update its last known directory
+                            self.UpdateLastKnownDir(photo, dstPath_File)
+                            copied = copied + 1
+                            print(str(progress) + ' out of ' +
+                                  str(len(photoPaths)) + ' files complete')
+                        else:
+                            failedToCopy.append(photo.Name)
+                            print('Failed to copy file')
+                            return False
+                    else:
+                        print('File Already Exists')
+
+                    progress = progress + 1
+
+        print(str(progress) + ' files processed')
+        print(str(copied) + ' files copied')
         print(str(len(failedToCopy)) + ' files failed to copy')
         return True
 

@@ -2,8 +2,8 @@ import datetime
 
 from FindingFilesPackage import filemanager as fm
 
-referenceDirectory = 'E:/Content/2021/7-28-21 Breckenridge Bachelor Party/A6300'
-sourceDirectory = 'C:/Users/joek/Desktop/Best Photos/Photos to add to lightroom for the boys'
+referenceDirectory = 'E:/Content/2021/8-22-21 Orcas Islands Whale Watching'
+sourceDirectory = 'F:/Partially Sorted Orcas'
 
 
 def main():
