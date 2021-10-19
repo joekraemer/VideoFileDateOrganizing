@@ -10,6 +10,13 @@
             "request": "launch",
             "program": "${workspaceFolder}/FindingFilesPackage/Test/FindingVideosForVlogs.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: MakeFoldersForStacks",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/FindingFilesPackage/Test/MakeFoldersForStacks.py",
+            "console": "integratedTerminal"
         }
     ]
 }

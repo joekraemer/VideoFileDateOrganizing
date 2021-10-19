@@ -579,27 +579,53 @@ class FileManager:
         progress = 0
         copied = 0
         failedToCopy = []
-        addedButNotMoved = 0
 
+
+        # First Move photos that are from continuous bracket shots
+        # for continuous burst, we know how many photos will be in the set
         folder_creation = []
+        photos_already_grouped = []
+        last_burst_photo_sequence_number = None
+        for photo in file_photo:
+            if photo.Name not in photos_already_grouped:
+                if photo.is_exposure_bracketing():
+
+                    # first of a new sequence (if the last burst was just one photo)
+                    if not last_burst_photo_sequence_number or (last_burst_photo_sequence_number == photo.SequenceNumber) or (last_burst_photo_sequence_number > photo.SequenceNumber):
+                        folder_creation.append([photo])
+
+                    # next photo in the sequence
+                    else:
+                        folder_creation[-1].append(photo)
+
+                    last_burst_photo_sequence_number = photo.SequenceNumber
+                    photos_already_grouped.append(photo.Name)
+
+                else:
+                    # skip this photo for now
+                    last_burst_photo_sequence_number = None
+
         # here I will make a list of lists where each list is
         for photo in file_photo:
-            match_found = False
-            # Find if there is a matching list
-            for fldr in folder_creation:
-                # protect against zero-length
-                if len(fldr) > 0:
-                    # see if the file would fit in the folder
-                    min, max = self._getMinMaxTimestamp(fldr)
-                    if self._withinTimeRange(min, max, photo.DateTime, time_range):
-                        # append photo to the matching list and then continue to the next photo
-                        fldr.append(photo)
-                        match_found = True
-                        break
+            if photo.Name not in photos_already_grouped:
+                match_found = False
+                # Find if there is a matching list
+                for fldr in folder_creation:
+                    # protect against zero-length
+                    if len(fldr) > 0:
+                        # see if the file would fit in the folder
+                        min, max = self._getMinMaxTimestamp(fldr)
+                        if self._withinTimeRange(min, max, photo.DateTime, time_range):
+                            # append photo to the matching list and then continue to the next photo
+                            fldr.append(photo)
+                            photos_already_grouped.append(photo)
+                            match_found = True
+                            break
 
-            if not match_found:
-            # if no matching folders are found, create a new "folder" ( in this case a list )
-                folder_creation.append([photo])
+                if not match_found:
+                # if no matching folders are found, create a new "folder" ( in this case a list )
+                    photos_already_grouped.append(photo.Name)
+                    folder_creation.append([photo])
 
         # create new directories for each of the stacks
         for fldr in folder_creation:

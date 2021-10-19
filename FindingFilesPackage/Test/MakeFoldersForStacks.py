@@ -8,7 +8,7 @@ These files are moved to folders in the reference directory
 
 from FindingFilesPackage import filemanager as fm
 
-referenceDirectory = 'E:/Content/2021/10-12-21 Chen Fam at Gas Works - Copy/jpgs'
+referenceDirectory = 'E:/Content/2021/10-18-21 Snoqualmie Falls with Chen Fam - Copy'
 
 
 def main():
