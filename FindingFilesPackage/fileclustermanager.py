@@ -7,7 +7,7 @@ from .folderfunctions import MakeFolder
 
 
 class FileClusterManager:
-    def __init__(self, date, path, maxOnDiskFiles=5, maxUnfolderedSize=3, maxOnDiskSizeGB=10):
+    def __init__(self, date, path, maxOnDiskFiles=5, maxOnDiskSizeGB=3):
         self.Size = 0
         # List of FileInformation Classes
         self.Files = []
@@ -15,17 +15,15 @@ class FileClusterManager:
         self.Date = date
         self.MaxOnDiskFiles = maxOnDiskFiles
         self.MaxOnDiskSizes = maxOnDiskSizeGB*(1073741824)
-        self.MaxUnfolderedSize = maxOnDiskFiles
 
         self.Path = os.path.join(
-            path, str(self.Date.year), str(self.Date.month))
+            path, str(self.Date.year), str(self.Date.month), str(self.Date.day))
         self.ClusterName = str(self.Date)
 
         # Name of folder when the FCM is instructed to put the files into a folder
         self.ClusterFolderName = str(self.Date.year)
 
-    # TODO: Prevent double adding files. Instead should maybe update the
-    # last known location.
+    # TODO: Prevent double adding files. Instead should maybe update the last known location.
     # Add files to this cluster
     def Add(self, file):
         # See if this file already exists
@@ -53,13 +51,7 @@ class FileClusterManager:
 
     # Return the Path that files for this cluster should go to
     def GetPath(self):
-        # First, do a check to see if we should create a folder for this cluster
-        # Should only create the folder once
-        if(self.Number == self.MaxUnfolderedSize):
-            self.CreateClusterFolder
-            self.MoveFilesToClusterFolder
-
-        if((self.Number == self.MaxOnDiskFiles) or (self.Size >= self.MaxOnDiskSizes)):
+        if (self.Number() >= self.MaxOnDiskFiles) or (self.Size >= self.MaxOnDiskSizes):
             self.FilesExistOffDisk = True
             return None
 
@@ -67,7 +59,7 @@ class FileClusterManager:
 
     # Create a folder with the day
     def CreateClusterFolder(self):
-        clusterFolder = os.path.join(self.Path, self.ClusterFolderName)
+        clusterFolder = os.path.join(self.Path)
         # Make sure the folder doesn't already exist
         if not (os.path.isdir(clusterFolder)):
             MakeFolder(clusterFolder)
@@ -82,7 +74,7 @@ class FileClusterManager:
 
     # Move file to a new directory
     def MoveFileToNewFolder(self, file, dstDir):
-        shutil.move(file, dstDir)
+        shutil.move(str(file), dstDir)
 
         # Make sure the move is complete
         historicalSize = -1

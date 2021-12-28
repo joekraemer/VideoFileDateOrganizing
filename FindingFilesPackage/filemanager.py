@@ -16,7 +16,7 @@ from .plotfiles import date_heatmap_plot
 
 class FileManager:
 
-    def __init__(self, vidExt=["*.mp4", "*.mov", "*.MP4", "*.avi", "*.mkv", "*.m4v"],
+    def __init__(self, vidExt=["*.mp4", "*.mov", "*.avi", "*.mkv", "*.m4v"],
                  photoExt=["*.jpg", "*.heic", "*.ARW", "*.png", "*.dng", "*.jpeg"],
                  rawPhotoExt=["*.ARW", "*.dng"]):
         # dictionary of file cluster managers by date
@@ -43,10 +43,8 @@ class FileManager:
         self.LastTimeUpdated = dt
 
     def Add(self, fileInfo, targetDir):
-
         # Check to see if there is already a key in the dictionary
-        if (self.ValueExists(fileInfo.DateTime.date())):
-
+        if self.ValueExists(fileInfo.DateTime.date()) is not None:
             self.files_by_date[fileInfo.DateTime.date()].Add(fileInfo)
         else:
             # Create a new File Cluster Manager
@@ -69,7 +67,7 @@ class FileManager:
 
     # Find File in dictionary and update its last know directory
     def UpdateLastKnownDir(self, fileInfo, newDir):
-        if (self.ValueExists(fileInfo.DateTime.date())):
+        if self.ValueExists(fileInfo.DateTime.date()) is not None:
             files = self.files_by_date[fileInfo.DateTime.date()].GetFiles()
             for f in files:
                 if f.Name == fileInfo.Name:
@@ -321,7 +319,7 @@ class FileManager:
         else:
             return False
 
-    def IndexVideosInDirectory(self, directory):
+    def IndexVideosInDirectory(self, directory, start_date=None, end_date=None):
         # find videos in the directory
         existingVideos = self.FindItemsInDirectory(
             directory, self.videoExtensions)
@@ -329,7 +327,18 @@ class FileManager:
         # add video file to the dictionary
         for vid in existingVideos:
             fileInfo = FileInformation(vid)
-            self.Add(fileInfo, directory)
+
+            if start_date is not None and fileInfo.DateTime < start_date:
+                print("File too old")
+                pass
+            if end_date is not None and fileInfo.DateTime > end_date:
+                print("File too new")
+                pass
+            else:
+                self.Add(fileInfo, directory)
+
+    def IndexVideosWithinDateRange(self, directory, start_date, end_date):
+        self.IndexVideosInDirectory(directory, start_date, end_date)
 
     def DeletePhotosInDirectory(self, directory):
         # find files that are photos
@@ -369,6 +378,7 @@ class FileManager:
                 return False
         else:
             return False
+
     # Cut videos from an existing directory and move it to a new target dir
     def CutVideosFromDirectory(self, sourceDir, targetDir):
         # Should we delete videos from the sourceDir if the FileClusterManager is not accepting any more videos
@@ -383,15 +393,17 @@ class FileManager:
             fileInfo = FileInformation(filePath)
 
             # Get the destination path from the FileClusterManager
-            if (self.ValueExists(fileInfo.DateTime.date())):
-                dstPath = self.files_by_date[fileInfo.DateTime.date(
-                )].GetPath()
+            if self.ValueExists(fileInfo.DateTime.date()) is not None:
+                fcm = self.files_by_date[fileInfo.DateTime.date(
+                )]
+                dstPath = fcm.GetPath()
+                fcm.Add(fileInfo)
             else:
                 self.Add(fileInfo, targetDir)
                 dstPath = self.files_by_date[fileInfo.DateTime.date(
                 )].GetPath()
 
-            if (dstPath == None):
+            if dstPath != None:
                 # Folder is full and file should not be copied
 
                 # Add the file name to the end of the destination directory
@@ -417,7 +429,7 @@ class FileManager:
         return True
 
     # Copy videos from an existing directory and paste it to a new target dir
-    def CopyVideosFromDirectory(self, sourceDir, targetDir):
+    def CopyVideosFromDirectory(self, sourceDir, targetDir, start_date=None, end_date=None):
 
         # Find all the videos in the sourceDir
         videoPaths = self.FindItemsInDirectory(sourceDir, self.videoExtensions)
@@ -430,47 +442,58 @@ class FileManager:
             # Create a new FileInformation object given the path
             fileInfo = FileInformation(filePath)
 
-            # Get the destination path from the FileClusterManager
-            if (self.ValueExists(fileInfo.DateTime.date())):
-                dstPath = self.files_by_date[fileInfo.DateTime.date(
-                )].GetPath()
+            if start_date is not None and fileInfo.DateTime < start_date:
+                print("File too old")
+                pass
+            elif end_date is not None and fileInfo.DateTime > end_date:
+                print("File too new")
+                pass
             else:
-                # If there is no FCM, then create one
-                self.Add(fileInfo, targetDir)
-                dstPath = self.files_by_date[fileInfo.DateTime.date(
-                )].GetPath()
+                # Get the destination path from the FileClusterManager
+                if self.ValueExists(fileInfo.DateTime.date()) is not None:
+                    fcm = self.files_by_date[fileInfo.DateTime.date(
+                    )]
+                    dstPath = fcm.GetPath()
+                    fcm.Add(fileInfo)
+                else:
+                    # If there is no FCM, then create one
+                    self.Add(fileInfo, targetDir)
+                    dstPath = self.files_by_date[fileInfo.DateTime.date(
+                    )].GetPath()
 
-            # GetPath returns None if the folder is full
-            if (dstPath != None):
-                # Folder not is full and file should be copied
+                # GetPath returns None if the folder is full
+                if (dstPath != None):
+                    # Folder not is full and file should be copied
 
-                # Add the file name to the end of the destination directory
-                dstPath_File = os.path.join(dstPath, fileInfo.Name)
+                    # Add the file name to the end of the destination directory
+                    dstPath_File = os.path.join(dstPath, fileInfo.Name)
 
-                # See if we can skip the copy
-                if not (os.path.isfile(dstPath_File)):
-                    if (self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath)):
-                        # Confirm that the file has been copied
-                        if (os.path.exists(dstPath_File)):
-                            # Copy was successfuly, update its last known directory
-                            self.UpdateLastKnownDir(fileInfo, dstPath_File)
-                            copied = copied + 1
-                            print(str(progress) + ' out of ' +
-                                  str(len(videoPaths)) + ' files complete')
+                    # See if we can skip the copy
+                    if not (os.path.isfile(dstPath_File)):
+                        if (self.CopyFileToDir(fileInfo.LastDirectoryFound, dstPath)):
+                            # Confirm that the file has been copied
+                            if (os.path.exists(dstPath_File)):
+                                # Copy was successfuly, update its last known directory
+                                self.UpdateLastKnownDir(fileInfo, dstPath_File)
+                                copied = copied + 1
+                                print("File copied successfully")
+                            else:
+                                failedToCopy.append(fileInfo.Name)
+                                print('Failed to copy file')
+                                return False
                         else:
                             failedToCopy.append(fileInfo.Name)
                             print('Failed to copy file')
                             return False
                     else:
-                        failedToCopy.append(fileInfo.Name)
-                        print('Failed to copy file')
-                        return False
+                        print('File Already Exists')
                 else:
-                    print('File Already Exists')
-            else:
-                addedButNotMoved = addedButNotMoved + 1
+                    print("Folder full")
+                    addedButNotMoved = addedButNotMoved + 1
 
-            progress = progress + 1
+                progress = progress + 1
+                print(str(progress) + ' out of ' +
+                      str(len(videoPaths)) + ' files complete')
 
         print(str(progress) + ' files processed')
         print(str(copied) + ' files copied')
@@ -481,8 +504,7 @@ class FileManager:
     def _getMinMaxTimestamp(self, list_of_files):
         """Returns a tuple of the min and max timestamp of a list of files"""
 
-
-        if len(list_of_files)>0:
+        if len(list_of_files) > 0:
             earliest = list_of_files[-1].DateTime
             latest = list_of_files[-1].DateTime
 
@@ -580,7 +602,6 @@ class FileManager:
         copied = 0
         failedToCopy = []
 
-
         # First Move photos that are from continuous bracket shots
         # for continuous burst, we know how many photos will be in the set
         folder_creation = []
@@ -591,7 +612,9 @@ class FileManager:
                 if photo.is_exposure_bracketing():
 
                     # first of a new sequence (if the last burst was just one photo)
-                    if not last_burst_photo_sequence_number or (last_burst_photo_sequence_number == photo.SequenceNumber) or (last_burst_photo_sequence_number > photo.SequenceNumber):
+                    if not last_burst_photo_sequence_number or (
+                            last_burst_photo_sequence_number == photo.SequenceNumber) or (
+                            last_burst_photo_sequence_number > photo.SequenceNumber):
                         folder_creation.append([photo])
 
                     # next photo in the sequence
@@ -623,7 +646,7 @@ class FileManager:
                             break
 
                 if not match_found:
-                # if no matching folders are found, create a new "folder" ( in this case a list )
+                    # if no matching folders are found, create a new "folder" ( in this case a list )
                     photos_already_grouped.append(photo.Name)
                     folder_creation.append([photo])
 

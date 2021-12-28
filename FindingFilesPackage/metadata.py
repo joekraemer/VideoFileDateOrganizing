@@ -95,31 +95,37 @@ def GetEXIF(file):
         print(str(file.name) + 'File does not exist')
 
 
-def GetCreationDateFromVideo(file):
+def GetCreationDateFromVideo(file, skipexif=False):
     if (file.exists()):
 
-        with exiftool.ExifTool() as et:
-            metadata = et.get_metadata(str(file))
-            MakerNote_ReleaseMode = metadata['MakerNotes:ReleaseMode']
-            MakerNote_ReleaseMode2 = metadata['MakerNotes:ReleaseMode2']
-            MakerNote_ReleaseMode3 = metadata['MakerNotes:ReleaseMode3']
-            MakerNote_SequenceNumber = metadata['MakerNotes:SequenceNumber']
-            MakerNote_SequenceImageNumber = metadata['MakerNotes:SequenceImageNumber']
-            MakerNote_SequenceLength = metadata['MakerNotes:SequenceLength']
+        if not skipexif:
+            with exiftool.ExifTool() as et:
+                metadata = et.get_metadata(str(file))
 
-            mode1 = ReleaseMode(MakerNote_ReleaseMode)
-            mode2 = ReleaseMode2(MakerNote_ReleaseMode2)
-            mode3 = ReleaseMode3(MakerNote_ReleaseMode3)
+                try:
+                    MakerNote_ReleaseMode = metadata['MakerNotes:ReleaseMode']
+                    MakerNote_ReleaseMode2 = metadata['MakerNotes:ReleaseMode2']
+                    MakerNote_ReleaseMode3 = metadata['MakerNotes:ReleaseMode3']
+                    MakerNote_SequenceNumber = metadata['MakerNotes:SequenceNumber']
+                    MakerNote_SequenceImageNumber = metadata['MakerNotes:SequenceImageNumber']
+                    MakerNote_SequenceLength = metadata['MakerNotes:SequenceLength']
 
-            print("Name: " + metadata['File:FileName'])
-            print("Mode1: " + str(mode1))
-            print("Mode2: " + str(mode2))
-            print("Mode3: " + str(mode3))
-            print("SequenceNumber:" + str(MakerNote_SequenceNumber))
-            print("SequenceImageNumber:" + str(MakerNote_SequenceImageNumber))
-            print("SequenceLength:" + str(MakerNote_SequenceLength))
-            print(" ")
+                    mode1 = ReleaseMode(MakerNote_ReleaseMode)
+                    mode2 = ReleaseMode2(MakerNote_ReleaseMode2)
+                    mode3 = ReleaseMode3(MakerNote_ReleaseMode3)
 
+                    print("Name: " + metadata['File:FileName'])
+                    print("Mode1: " + str(mode1))
+                    print("Mode2: " + str(mode2))
+                    print("Mode3: " + str(mode3))
+                    print("SequenceNumber:" + str(MakerNote_SequenceNumber))
+                    print("SequenceImageNumber:" + str(MakerNote_SequenceImageNumber))
+                    print("SequenceLength:" + str(MakerNote_SequenceLength))
+                    print(" ")
+
+                except Exception:
+                    #print("Not a sony photo file.")
+                    pass
         try:
             properties = propsys.SHGetPropertyStoreFromParsingName(str(file))
             dt = properties.GetValue(pscon.PKEY_Media_DateEncoded).GetValue()
@@ -130,7 +136,7 @@ def GetCreationDateFromVideo(file):
 
             try:
                 mtime = datetime.datetime.fromtimestamp(file.stat().st_mtime)
-                # print('Sucess with datetime')
+                # print('Success with datetime')
                 return mtime
             except Exception:
                 # print('Not able to extract date with Path.stat()')

@@ -3,10 +3,16 @@ import datetime
 from FindingFilesPackage import filemanager as fm
 
 Destructive = False
-targetDirectory = 'D:/target'
-sourceDirectory = 'D:/ResolveTestingOneSecond'
+targetDirectory = 'D:/12-31-21 2021 OneSecond'
+sourceDirectory = 'E:/Content/2021'
+#targetDirectory = 'D:/OneSecondTesting-Destination'
+#sourceDirectory = 'D:/OneSecondTesting-Source'
 dictionaryFilename = 'OneSecondDictionary.pickle'
 
+start = datetime.date(2021, 1, 1)
+end = datetime.date(2021, 12, 31)
+start_datetime = datetime.datetime(start.year, start.month, start.day)
+end_datetime = datetime.datetime(end.year, end.month, end.day)
 
 def main():
 
@@ -17,10 +23,10 @@ def main():
 
     lstMod = ref.OrganizedFoldersLastTimeModified(targetDirectory)
     lstUpdated = ref.LastTimeUpdated
-    if(lstMod > lstUpdated):
+    if(lstMod > lstUpdated) and False:
         # Add videos to dictionary that are already in the Target Directory
         print('Target Directory Updated, rescanning...')
-        ref.IndexVideosInDirectory(targetDirectory)
+        ref.IndexVideosInDirectory(targetDirectory, start_datetime, end_datetime)
         ref.UpdateLastTimeUpdated(datetime.datetime.now())
 
     if sourceDirectory != None:
@@ -32,17 +38,15 @@ def main():
 
         else:
             # Add videos to dictionary and then delete them
-            ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory)
+            ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory, start_datetime, end_datetime)
 
-    ref.PrintNumberOfMissingDatesPerMonth(2020)
-    ref.PrintNumberOfMissingDatesPerYear(2020)
+    ref.PrintNumberOfMissingDatesPerMonth(2021)
+    ref.PrintNumberOfMissingDatesPerYear(2021)
 
-    start = datetime.date(2020, 1, 1)
-    end = datetime.date(2020, 12, 31)
     ref.PlotHeatMap(start, end)
 
+    ref.UpdateLastTimeUpdated(datetime.datetime.now())
     ref.SaveDictionary(targetDirectory, dictionaryFilename)
-
 
 if __name__ == "__main__":
     main()
