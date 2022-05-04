@@ -17,7 +17,7 @@ class FileInformation:
         self.NameNoExt = head_tail[0]
 
         # Get Creation Date
-        dt = GetCreationDateFromVideo(lastDirFound)
+        dt = GetCreationDateFromVideo(lastDirFound, True)
         self.DateTime = dt
 
         self.Size = os.path.getsize(lastDirFound)
@@ -28,12 +28,16 @@ class FileInformation:
             self._parse_exif()
 
     def _parse_exif(self):
-        self.ReleaseMode = ReleaseMode(self.EXIF['MakerNotes:ReleaseMode'])
-        self.ReleaseMode2 = ReleaseMode2(self.EXIF['MakerNotes:ReleaseMode2'])
-        self.ReleaseMode3 = ReleaseMode3(self.EXIF['MakerNotes:ReleaseMode3'])
-        self.SequenceNumber = self.EXIF['MakerNotes:SequenceNumber']
-        self.SequenceImageNumber = self.EXIF['MakerNotes:SequenceImageNumber']
-        self.SequenceLength = self.EXIF['MakerNotes:SequenceLength']
+        try:
+            self.ReleaseMode = ReleaseMode(self.EXIF['MakerNotes:ReleaseMode'])
+            self.ReleaseMode2 = ReleaseMode2(self.EXIF['MakerNotes:ReleaseMode2'])
+            self.ReleaseMode3 = ReleaseMode3(self.EXIF['MakerNotes:ReleaseMode3'])
+            self.SequenceNumber = self.EXIF['MakerNotes:SequenceNumber']
+            self.SequenceImageNumber = self.EXIF['MakerNotes:SequenceImageNumber']
+            self.SequenceLength = self.EXIF['MakerNotes:SequenceLength']
+        finally:
+            #print("No Sequence or release information in metadata")
+            return
 
     def _print_exif(self):
         print("Name: " + self.EXIF['File:FileName'])
