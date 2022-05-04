@@ -1,6 +1,6 @@
 import os
 
-from .metadata import GetCreationDateFromVideo, GetEXIF, ReleaseMode, ReleaseMode2, ReleaseMode3
+from  metadata import GetCreationDateFromVideo, GetEXIF, ReleaseMode, ReleaseMode2, ReleaseMode3
 
 
 class FileInformation:
@@ -23,8 +23,9 @@ class FileInformation:
         self.Size = os.path.getsize(lastDirFound)
         # Could add other relevent things like metadata or tags
 
-        self.EXIF = GetEXIF(lastDirFound)
-        self._parse_exif()
+        if False:
+            self.EXIF = GetEXIF(lastDirFound)
+            self._parse_exif()
 
     def _parse_exif(self):
         self.ReleaseMode = ReleaseMode(self.EXIF['MakerNotes:ReleaseMode'])

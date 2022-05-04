@@ -12,6 +12,13 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Python: FindingRAWs",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/FindingFilesPackage/GettingRawFiles.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Python: MakeFoldersForStacks",
             "type": "python",
             "request": "launch",

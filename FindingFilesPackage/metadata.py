@@ -94,32 +94,8 @@ def GetEXIF(file):
     else:
         print(str(file.name) + 'File does not exist')
 
-
 def GetCreationDateFromVideo(file):
     if (file.exists()):
-
-        with exiftool.ExifTool() as et:
-            metadata = et.get_metadata(str(file))
-            MakerNote_ReleaseMode = metadata['MakerNotes:ReleaseMode']
-            MakerNote_ReleaseMode2 = metadata['MakerNotes:ReleaseMode2']
-            MakerNote_ReleaseMode3 = metadata['MakerNotes:ReleaseMode3']
-            MakerNote_SequenceNumber = metadata['MakerNotes:SequenceNumber']
-            MakerNote_SequenceImageNumber = metadata['MakerNotes:SequenceImageNumber']
-            MakerNote_SequenceLength = metadata['MakerNotes:SequenceLength']
-
-            mode1 = ReleaseMode(MakerNote_ReleaseMode)
-            mode2 = ReleaseMode2(MakerNote_ReleaseMode2)
-            mode3 = ReleaseMode3(MakerNote_ReleaseMode3)
-
-            print("Name: " + metadata['File:FileName'])
-            print("Mode1: " + str(mode1))
-            print("Mode2: " + str(mode2))
-            print("Mode3: " + str(mode3))
-            print("SequenceNumber:" + str(MakerNote_SequenceNumber))
-            print("SequenceImageNumber:" + str(MakerNote_SequenceImageNumber))
-            print("SequenceLength:" + str(MakerNote_SequenceLength))
-            print(" ")
-
         try:
             properties = propsys.SHGetPropertyStoreFromParsingName(str(file))
             dt = properties.GetValue(pscon.PKEY_Media_DateEncoded).GetValue()

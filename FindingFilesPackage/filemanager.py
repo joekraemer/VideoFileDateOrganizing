@@ -1,4 +1,5 @@
 import datetime
+import imp
 import time
 import calendar
 import pywintypes
@@ -8,10 +9,10 @@ import pickle
 from pathlib import Path
 import pandas as pd
 
-from .fileclustermanager import FileClusterManager
-from .fileinformation import FileInformation
-from .folderfunctions import MakeFoldersForMonths, MakeFolder
-from .plotfiles import date_heatmap_plot
+from fileclustermanager import FileClusterManager
+from fileinformation import FileInformation
+from folderfunctions import MakeFoldersForMonths, MakeFolder
+from plotfiles import date_heatmap_plot
 
 
 class FileManager:
