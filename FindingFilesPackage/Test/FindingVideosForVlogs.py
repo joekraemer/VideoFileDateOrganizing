@@ -3,16 +3,17 @@ import datetime
 from FindingFilesPackage import filemanager as fm
 
 Destructive = False
-targetDirectory = 'D:/12-31-21 2021 OneSecond'
-sourceDirectory = 'E:/Content/2021'
+targetDirectory = '/Volumes/Backup Two/Content/2022 One Second/Content'
+sourceDirectory = '/Volumes/Backup Two/Content/2022 One Second/Winnie\'s Photos'
 #targetDirectory = 'D:/OneSecondTesting-Destination'
 #sourceDirectory = 'D:/OneSecondTesting-Source'
 dictionaryFilename = 'OneSecondDictionary.pickle'
 
-start = datetime.date(2021, 1, 1)
-end = datetime.date(2021, 12, 31)
+start = datetime.date(2022, 1, 1)
+end = datetime.date(2022, 12, 31)
 start_datetime = datetime.datetime(start.year, start.month, start.day)
 end_datetime = datetime.datetime(end.year, end.month, end.day)
+
 
 def main():
 
@@ -40,8 +41,8 @@ def main():
             # Add videos to dictionary and then delete them
             ref.CopyVideosFromDirectory(sourceDirectory, targetDirectory, start_datetime, end_datetime)
 
-    ref.PrintNumberOfMissingDatesPerMonth(2021)
-    ref.PrintNumberOfMissingDatesPerYear(2021)
+    ref.PrintNumberOfMissingDatesPerMonth(2022)
+    ref.PrintNumberOfMissingDatesPerYear(2022)
 
     ref.PlotHeatMap(start, end)
 

@@ -1,11 +1,10 @@
 import datetime
 import enum
+import os
 
-import pywintypes
-import exifread
-import piexif
 import exiftool
-from win32com.propsys import propsys, pscon
+import pytz
+# from win32com.propsys import propsys, pscon
 
 
 # Use this website to reference and check the exif information is correct
@@ -127,12 +126,28 @@ def GetCreationDateFromVideo(file, skipexif=False):
                     #print("Not a sony photo file.")
                     pass
         try:
-            properties = propsys.SHGetPropertyStoreFromParsingName(str(file))
-            dt = properties.GetValue(pscon.PKEY_Media_DateEncoded).GetValue()
-            dt = ConvertToDateTime(dt)
-            return dt
+            with exiftool.ExifToolHelper() as et:
+                metadata = et.get_metadata(str(file))
+
+                try:
+                    date_str = metadata[0]['QuickTime:CreateDate']
+                    date_obj = datetime.datetime.strptime(date_str, '%Y:%m:%d %H:%M:%S')
+                except:
+                    # if the CreateDate doesn't work, we can try the
+                    date_str = metadata[0]['File:FileModifyDate']
+                    date_obj_with_tz = datetime.datetime.strptime(date_str, '%Y:%m:%d %H:%M:%S%z')
+                    # remove timezone information
+                    date_obj = date_obj_with_tz.replace(tzinfo=None)
+
+                finally:
+                    return date_obj
+
+            # properties = propsys.SHGetPropertyStoreFromParsingName(str(file))
+            # dt = properties.GetValue(pscon.PKEY_Media_DateEncoded).GetValue()
+            # dt = ConvertToDateTime(dt)
+            # return dt
         except Exception:
-            # print('Not able to extract date with propsys')
+            print('Not able to extract date with ExifTool')
 
             try:
                 mtime = datetime.datetime.fromtimestamp(file.stat().st_mtime)

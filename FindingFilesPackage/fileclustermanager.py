@@ -7,7 +7,7 @@ from folderfunctions import MakeFolder
 
 
 class FileClusterManager:
-    def __init__(self, date, path, maxOnDiskFiles=5, maxOnDiskSizeGB=3):
+    def __init__(self, date, path, maxOnDiskFiles=13, maxOnDiskSizeGB=4):
         self.Size = 0
         # List of FileInformation Classes
         self.Files = []

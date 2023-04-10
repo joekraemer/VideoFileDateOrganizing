@@ -1,8 +1,6 @@
 import datetime
-import imp
 import time
 import calendar
-import pywintypes
 import shutil
 import os
 import pickle
@@ -17,8 +15,8 @@ from plotfiles import date_heatmap_plot
 
 class FileManager:
 
-    def __init__(self, vidExt=["*.mp4", "*.mov", "*.avi", "*.mkv", "*.m4v"],
-                 photoExt=["*.jpg", "*.heic", "*.ARW", "*.png", "*.dng", "*.jpeg"],
+    def __init__(self, vidExt=["*.mp4", "*.mov", "*.avi", "*.mkv", "*.m4v", "*.MP4", "*.MOV", "*.AVI", "*.MKV", "*.M4V"],
+                 photoExt=["*.jpg", "*.heic", "*.ARW", "*.png", "*.dng", "*.JPEG", "*.PNG", "*.DNG", "*.jpeg", ".JPG"],
                  rawPhotoExt=["*.ARW", "*.dng"]):
         # dictionary of file cluster managers by date
         self.files_by_date = {}
@@ -79,6 +77,17 @@ class FileManager:
         del self.files_by_date[dt.date()]
 
     def FindItemsInDirectory(self, srcDir, extensionList, recursive=True):
+        '''
+        Creates a list of file paths of files that match the extension in the list.
+
+        Args:
+            srcDir: string, directory to search in
+            extensionList: List of extensions to match
+            recursive: Bool, if True, searches recursively
+
+        Returns:
+
+        '''
         pathList = []
         for ext in extensionList:
             if recursive:
